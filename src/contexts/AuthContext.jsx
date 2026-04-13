@@ -1,23 +1,25 @@
-// src/contexts/AuthContext.jsx
 import React, { createContext, useState, useContext, useEffect } from 'react';
 
 const AuthContext = createContext();
 
 const ADMIN_CREDENTIALS = {
-  email: 'admin@c3r.org',
+  email: 'admin@msrs.org',
   password: 'admin123'
 };
 
 export function AuthProvider({ children }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true); // Add loading state
 
   useEffect(() => {
+    // Check authentication on mount
     const storedAuth = localStorage.getItem('adminAuth');
-    if (storedAuth) {
+    if (storedAuth === 'true') {
       setIsAuthenticated(true);
       setUser({ email: ADMIN_CREDENTIALS.email });
     }
+    setLoading(false); // Mark loading as complete
   }, []);
 
   const login = (email, password) => {
@@ -37,7 +39,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, user, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, user, login, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );
