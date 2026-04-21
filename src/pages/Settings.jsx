@@ -1,32 +1,139 @@
-// src/pages/Settings.jsx
 import React, { useState } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
-import { Save, Phone, Mail, MapPin, Globe, Facebook, Twitter, Linkedin, Instagram } from 'lucide-react';
+import { Save, Lock, Eye, EyeOff } from 'lucide-react';
 
 export default function Settings() {
-  const [settings, setSettings] = useLocalStorage('c3r_settings', {
-    phone: '+91 12345 67890',
-    email: 'contact@c3r.org',
-    address: 'Mumbai, Maharashtra, India',
-    facebook: 'https://facebook.com/c3r',
-    twitter: 'https://twitter.com/c3r',
-    linkedin: 'https://linkedin.com/company/c3r',
-    instagram: 'https://instagram.com/c3r'
+  // Store password hash (in real app, use hashing; here plain text for demo)
+  const [storedPassword, setStoredPassword] = useLocalStorage('c3r_admin_password', 'admin123');
+  const [formData, setFormData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
   });
-  const [saved, setSaved] = useState(false);
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [message, setMessage] = useState({ text: '', type: '' });
 
-  const handleChange = (e) => { setSettings({ ...settings, [e.target.name]: e.target.value }); setSaved(false); };
-  const handleSubmit = (e) => { e.preventDefault(); setSettings(settings); setSaved(true); setTimeout(() => setSaved(false), 3000); };
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+    setMessage({ text: '', type: '' });
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const { currentPassword, newPassword, confirmPassword } = formData;
+
+    // Validation
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setMessage({ text: 'All fields are required', type: 'error' });
+      return;
+    }
+    if (currentPassword !== storedPassword) {
+      setMessage({ text: 'Current password is incorrect', type: 'error' });
+      return;
+    }
+    if (newPassword.length < 6) {
+      setMessage({ text: 'New password must be at least 6 characters', type: 'error' });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setMessage({ text: 'New password and confirm password do not match', type: 'error' });
+      return;
+    }
+
+    // Update password
+    setStoredPassword(newPassword);
+    setFormData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    setMessage({ text: 'Password reset successfully!', type: 'success' });
+    setTimeout(() => setMessage({ text: '', type: '' }), 3000);
+  };
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold">Organization Settings</h2>
-      <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border p-6 max-w-2xl space-y-6">
-        {saved && (<div className="bg-green-50 text-green-700 p-3 rounded-lg text-sm">Settings saved successfully!</div>)}
-        <div><h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2"><Phone className="w-4 h-4" /> Contact Information</h3><div className="space-y-4"><div><label className="label">Phone Number</label><input name="phone" value={settings.phone} onChange={handleChange} className="input-field" /></div><div><label className="label">Email Address</label><input name="email" value={settings.email} onChange={handleChange} className="input-field" type="email" /></div><div><label className="label">Address</label><textarea name="address" rows="2" value={settings.address} onChange={handleChange} className="input-field" /></div></div></div>
-        <div><h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2"><Globe className="w-4 h-4" /> Social Media Links</h3><div className="space-y-4"><div className="flex items-center gap-2"><Facebook className="w-4 h-4 text-gray-400" /><input name="facebook" value={settings.facebook} onChange={handleChange} className="input-field flex-1" placeholder="Facebook URL" /></div><div className="flex items-center gap-2"><Twitter className="w-4 h-4 text-gray-400" /><input name="twitter" value={settings.twitter} onChange={handleChange} className="input-field flex-1" placeholder="Twitter URL" /></div><div className="flex items-center gap-2"><Linkedin className="w-4 h-4 text-gray-400" /><input name="linkedin" value={settings.linkedin} onChange={handleChange} className="input-field flex-1" placeholder="LinkedIn URL" /></div><div className="flex items-center gap-2"><Instagram className="w-4 h-4 text-gray-400" /><input name="instagram" value={settings.instagram} onChange={handleChange} className="input-field flex-1" placeholder="Instagram URL" /></div></div></div>
-        <div className="flex justify-end"><button type="submit" className="btn-primary text-sm flex items-center gap-1"><Save className="w-4 h-4" /> Save Settings</button></div>
+      <h2 className="text-lg font-semibold">Reset Password</h2>
+
+      <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border p-6 max-w-md space-y-6">
+        {message.text && (
+          <div className={`p-3 rounded-lg text-sm ${message.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+            {message.text}
+          </div>
+        )}
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
+          <div className="relative">
+            <input
+              type={showCurrent ? 'text' : 'password'}
+              name="currentPassword"
+              value={formData.currentPassword}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 pr-10"
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setShowCurrent(!showCurrent)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              {showCurrent ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">New Password (min. 6 characters)</label>
+          <div className="relative">
+            <input
+              type={showNew ? 'text' : 'password'}
+              name="newPassword"
+              value={formData.newPassword}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 pr-10"
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setShowNew(!showNew)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
+          <div className="relative">
+            <input
+              type={showConfirm ? 'text' : 'password'}
+              name="confirmPassword"
+              value={formData.confirmPassword}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 pr-10"
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setShowConfirm(!showConfirm)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+          </div>
+        </div>
+
+        <div className="flex justify-end">
+          <button type="submit" className="btn-primary text-sm flex items-center gap-1 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">
+            <Save className="w-4 h-4" /> Reset Password
+          </button>
+        </div>
       </form>
+
+      <div className="text-xs text-gray-400 mt-4">
+        <p>Default password: <code className="bg-gray-100 px-1">admin123</code></p>
+        <p>Password is stored locally in your browser. This is a demo – in production, always hash passwords.</p>
+      </div>
     </div>
   );
 }
