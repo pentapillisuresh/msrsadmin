@@ -44,7 +44,7 @@ export default function Settings() {
       const response = await api.post(`/users/verify-password/${userId}`, {
         password: formData.currentPassword
       });
-      return response.data.success;
+      return response.success;
     } catch (error) {
       console.error('Error verifying password:', error);
       return false;
@@ -85,7 +85,7 @@ export default function Settings() {
         newPassword: newPassword
       });
       
-      if (response.data.success) {
+      if (response.success) {
         setFormData({ currentPassword: '', newPassword: '', confirmPassword: '' });
         setMessage({ text: 'Password reset successfully! Please login with your new password.', type: 'success' });
         

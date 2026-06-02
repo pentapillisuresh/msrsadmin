@@ -22,8 +22,8 @@ export default function DonationCategoryManager({ categories, onAddCategory, onD
           status: 'active'
         });
         
-        if (response.data.success) {
-          onAddCategory(response.data.data);
+        if (response.success) {
+          onAddCategory(response.data);
           setNewCategory('');
         }
       } catch (error) {
@@ -52,8 +52,8 @@ export default function DonationCategoryManager({ categories, onAddCategory, onD
           status: 'active'
         });
         
-        if (response.data.success) {
-          onUpdateCategory(editingCategory.id, response.data.data);
+        if (response.success) {
+          onUpdateCategory(editingCategory.id, response.data);
           setEditingCategory(null);
           setEditValue('');
         }
@@ -78,7 +78,7 @@ export default function DonationCategoryManager({ categories, onAddCategory, onD
         // API call to delete category
         const response = await axios.delete(`http://localhost:3000/api/categories/${category.id}`);
         
-        if (response.data.success) {
+        if (response.success) {
           onDeleteCategory(category.id);
         }
       } catch (error) {

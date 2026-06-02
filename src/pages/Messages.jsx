@@ -37,7 +37,7 @@ export default function Messages() {
   const updateStatus = async (id, status) => {
     try {
       const response = await api.put(`/messages/${id}/status`, { status });
-      if (response.data.success) {
+      if (response.success) {
         await fetchMessages();
         if (selectedMessage?.id === id) {
           setSelectedMessage({ ...selectedMessage, status });
@@ -63,7 +63,7 @@ export default function Messages() {
         replyMessage: replyText
       });
       
-      if (response.data.success) {
+      if (response.success) {
         await fetchMessages();
         setShowReplyModal(false);
         setReplyText('');
@@ -81,8 +81,8 @@ export default function Messages() {
   const handleViewMessage = async (message) => {
     try {
       const response = await api.get(`/messages/${message.id}`);
-      if (response.data.success) {
-        setSelectedMessage(response.data.data);
+      if (response.success) {
+        setSelectedMessage(response.data);
         // Mark as read if it's unread
         if (response.data.data.status === 'unread') {
           await updateStatus(message.id, 'read');

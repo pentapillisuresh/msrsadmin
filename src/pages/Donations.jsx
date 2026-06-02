@@ -56,7 +56,7 @@ export default function Donations() {
   const fetchStats = async () => {
     try {
       const response = await api.get('/donations/stats');
-      if (response.data.success) {
+      if (response.success) {
         setStats(response.data.data);
       }
     } catch (error) {
@@ -252,7 +252,7 @@ export default function Donations() {
         response = await api.post('/donations/createByAdmin', donationData);
       }
 
-      if (response.data.success) {
+      if (response.success) {
         await fetchDonations();
         await fetchStats();
         setShowForm(false);
@@ -271,7 +271,7 @@ export default function Donations() {
     if (window.confirm('Are you sure you want to delete this donation record?')) {
       try {
         const response = await api.delete(`/donations/${id}`);
-        if (response.data.success) {
+        if (response.success) {
           await fetchDonations();
           await fetchStats();
           alert('Donation deleted successfully!');
