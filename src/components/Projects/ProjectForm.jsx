@@ -1,4 +1,6 @@
+// ProjectForm.jsx
 import React, { useState, useEffect } from 'react';
+import {api} from '../../services/ApiService';
 
 // ---------- Mock API for Indian states & districts (replace with real endpoint) ----------
 const fetchStates = () => {
@@ -12,7 +14,8 @@ const fetchStates = () => {
         { code: 'UP', name: 'Uttar Pradesh' },
         { code: 'GJ', name: 'Gujarat' },
         { code: 'WB', name: 'West Bengal' },
-        { code: 'RJ', name: 'Rajasthan' }
+        { code: 'RJ', name: 'Rajasthan' },
+        { code: 'AP', name: 'Andhra Pradesh' }
       ]);
     }, 300);
   });
@@ -27,7 +30,8 @@ const fetchDistricts = (stateCode) => {
     UP: ['Lucknow', 'Kanpur', 'Agra', 'Varanasi'],
     GJ: ['Ahmedabad', 'Surat', 'Vadodara', 'Rajkot'],
     WB: ['Kolkata', 'Howrah', 'Darjeeling', 'Siliguri'],
-    RJ: ['Jaipur', 'Jodhpur', 'Udaipur', 'Kota']
+    RJ: ['Jaipur', 'Jodhpur', 'Udaipur', 'Kota'],
+    AP: ['Visakhapatnam', 'Vijayawada', 'Guntur', 'Nellore']
   };
   return new Promise((resolve) => {
     setTimeout(() => {
@@ -39,24 +43,28 @@ const fetchDistricts = (stateCode) => {
 
 export default function ProjectForm({ initialData, onSave, onCancel, categories }) {
   const [formData, setFormData] = useState({
-    title: initialData?.title || '',
-    category: initialData?.category || categories[0] || '',
+    name: initialData?.name || '',
+    categoryId: initialData?.categoryId || '',
     objective: initialData?.objective || '',
     targetBeneficiaries: initialData?.targetBeneficiaries || '',
     budgetRequired: initialData?.budgetRequired || '',
-    impactMetrics: initialData?.impactMetrics || [''],
+    impactMetrics: initialData?.points ? JSON.parse(initialData.points) : [''],
     csrAlignment: initialData?.csrAlignment || '',
     state: initialData?.state || '',
     district: initialData?.district || '',
     date: initialData?.date || '',
-    status: initialData?.status || 'Upcoming',
-    image: initialData?.image || ''  // base64 string
+    status: initialData?.status || 'pending',
+    projectImage: initialData?.projectImage || '',
+    applicationType: initialData?.applicationType || 'NGO',
+    mode: initialData?.mode || 'Offline'
   });
 
   const [states, setStates] = useState([]);
   const [districts, setDistricts] = useState([]);
   const [loadingDistricts, setLoadingDistricts] = useState(false);
-  const [imagePreview, setImagePreview] = useState(formData.image || '');
+  const [imagePreview, setImagePreview] = useState(initialData?.projectImage ? `http://localhost:3000${initialData.projectImage}` : '');
+  const [imageFile, setImageFile] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   // Load states on mount
   useEffect(() => {
@@ -88,11 +96,10 @@ export default function ProjectForm({ initialData, onSave, onCancel, categories 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
+      setImageFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
-        const base64 = reader.result;
-        setImagePreview(base64);
-        setFormData(prev => ({ ...prev, image: base64 }));
+        setImagePreview(reader.result);
       };
       reader.readAsDataURL(file);
     }
@@ -114,21 +121,69 @@ export default function ProjectForm({ initialData, onSave, onCancel, categories 
     setFormData(prev => ({ ...prev, impactMetrics: newMetrics }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
+
+    const formDataToSend = new FormData();
+    
+    // Add all fields to FormData
+    formDataToSend.append('name', formData.name);
+    formDataToSend.append('objective', formData.objective);
+    formDataToSend.append('targetBeneficiaries', formData.targetBeneficiaries);
+    formDataToSend.append('budgetRequired', formData.budgetRequired);
+    formDataToSend.append('csrAlignment', formData.csrAlignment);
+    formDataToSend.append('state', formData.state);
+    formDataToSend.append('district', formData.district);
+    formDataToSend.append('applicationType', formData.applicationType);
+    formDataToSend.append('mode', formData.mode);
+    formDataToSend.append('date', formData.date);
+    formDataToSend.append('status', formData.status);
+    formDataToSend.append('categoryId', formData.categoryId);
+    
+    // Clean and add points
     const cleanedMetrics = formData.impactMetrics.filter(m => m.trim() !== '');
-    onSave({ ...formData, impactMetrics: cleanedMetrics });
+    formDataToSend.append('points', JSON.stringify(cleanedMetrics));
+    
+    // Add image if selected
+    if (imageFile) {
+      formDataToSend.append('projectImage', imageFile);
+    }
+
+    try {
+      let response;
+      if (initialData?.id) {
+        // Update existing project
+        response = await api.put(`/projects/${initialData.id}`, formDataToSend, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+      } else {
+        // Create new project
+        response = await api.post('/projects/', formDataToSend, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+      }
+      
+      if (response.success) {
+        onSave(response.data);
+      }
+    } catch (error) {
+      console.error('Error saving project:', error);
+      alert('Error saving project. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Project Title *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Project Name *</label>
           <input
             type="text"
-            name="title"
-            value={formData.title}
+            name="name"
+            value={formData.name}
             onChange={handleChange}
             required
             className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -150,15 +205,46 @@ export default function ProjectForm({ initialData, onSave, onCancel, categories 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
           <select
-            name="category"
-            value={formData.category}
+            name="categoryId"
+            value={formData.categoryId}
             onChange={handleChange}
             required
             className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
+            <option value="">Select Category</option>
             {categories.map(cat => (
-              <option key={cat} value={cat}>{cat}</option>
+              <option key={cat.id} value={cat.id}>{cat.name}</option>
             ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Application Type *</label>
+          <select
+            name="applicationType"
+            value={formData.applicationType}
+            onChange={handleChange}
+            required
+            className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="NGO">NGO</option>
+            <option value="Corporate">Corporate</option>
+            <option value="Government">Government</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Mode *</label>
+          <select
+            name="mode"
+            value={formData.mode}
+            onChange={handleChange}
+            required
+            className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="Offline">Offline</option>
+            <option value="Online">Online</option>
+            <option value="Hybrid">Hybrid</option>
           </select>
         </div>
 
@@ -192,7 +278,7 @@ export default function ProjectForm({ initialData, onSave, onCancel, categories 
             name="csrAlignment"
             value={formData.csrAlignment}
             onChange={handleChange}
-            placeholder="e.g., Schedule VII, Education"
+            placeholder="e.g., Environment Sustainability"
             className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
@@ -208,26 +294,22 @@ export default function ProjectForm({ initialData, onSave, onCancel, categories 
           >
             <option value="">Select State</option>
             {states.map(state => (
-              <option key={state.code} value={state.code}>{state.name}</option>
+              <option key={state.code} value={state.name}>{state.name}</option>
             ))}
           </select>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">District *</label>
-          <select
+          <input
             name="district"
             value={formData.district}
             onChange={handleChange}
             required
+            placeholder="District"
             disabled={!formData.state || loadingDistricts}
             className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">Select District</option>
-            {districts.map(dist => (
-              <option key={dist} value={dist}>{dist}</option>
-            ))}
-          </select>
+          />
         </div>
 
         <div>
@@ -249,9 +331,9 @@ export default function ProjectForm({ initialData, onSave, onCancel, categories 
             onChange={handleChange}
             className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="Upcoming">Upcoming</option>
-            <option value="Active">Active</option>
-            <option value="Completed">Completed</option>
+            <option value="pending">Pending</option>
+            <option value="draft">Draft</option>
+            <option value="completed">Completed</option>
           </select>
         </div>
 
@@ -306,8 +388,8 @@ export default function ProjectForm({ initialData, onSave, onCancel, categories 
         <button type="button" onClick={onCancel} className="px-4 py-2 border rounded-lg hover:bg-gray-50">
           Cancel
         </button>
-        <button type="submit" className="btn-primary px-4 py-2">
-          {initialData ? 'Update Project' : 'Create Project'}
+        <button type="submit" disabled={loading} className="btn-primary px-4 py-2">
+          {loading ? 'Saving...' : (initialData ? 'Update Project' : 'Create Project')}
         </button>
       </div>
     </form>

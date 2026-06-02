@@ -1,20 +1,37 @@
-// src/components/KnowledgeHub/KnowledgeCategoryManager.jsx
+// src/components/Donations/DonationCategoryManager.jsx
 import React, { useState } from 'react';
 import { Plus, Edit2, Trash2, Check, X } from 'lucide-react';
+import axios from 'axios';
 
-export default function KnowledgeCategoryManager({ categories, onAddCategory, onDeleteCategory, onUpdateCategory }) {
+export default function DonationCategoryManager({ categories, onAddCategory, onDeleteCategory, onUpdateCategory }) {
   const [newCategory, setNewCategory] = useState('');
   const [editingCategory, setEditingCategory] = useState(null);
   const [editValue, setEditValue] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    e.preventDefault(); 
     if (newCategory.trim()) {
       setLoading(true);
-      await onAddCategory(newCategory.trim());
-      setNewCategory('');
-      setLoading(false);
+      try {
+        // API call to create category
+        const response = await axios.post('http://localhost:3000/api/categories/', {
+          name: newCategory.trim(),
+          categoryRelated: 'donation',
+          description: `Donations related to ${newCategory.trim()}`,
+          status: 'active'
+        });
+        
+        if (response.data.success) {
+          onAddCategory(response.data.data);
+          setNewCategory('');
+        }
+      } catch (error) {
+        console.error('Error adding category:', error);
+        alert('Error adding category. Please try again.');
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -26,10 +43,26 @@ export default function KnowledgeCategoryManager({ categories, onAddCategory, on
   const saveEdit = async () => {
     if (editValue.trim() && editingCategory) {
       setLoading(true);
-      await onUpdateCategory(editingCategory.id, editValue.trim());
-      setEditingCategory(null);
-      setEditValue('');
-      setLoading(false);
+      try {
+        // API call to update category
+        const response = await axios.put(`http://localhost:3000/api/categories/${editingCategory.id}`, {
+          name: editValue.trim(),
+          categoryRelated: 'donation',
+          description: `Donations related to ${editValue.trim()}`,
+          status: 'active'
+        });
+        
+        if (response.data.success) {
+          onUpdateCategory(editingCategory.id, response.data.data);
+          setEditingCategory(null);
+          setEditValue('');
+        }
+      } catch (error) {
+        console.error('Error updating category:', error);
+        alert('Error updating category. Please try again.');
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -41,8 +74,19 @@ export default function KnowledgeCategoryManager({ categories, onAddCategory, on
   const handleDelete = async (category) => {
     if (window.confirm(`Are you sure you want to delete category "${category.name}"?`)) {
       setLoading(true);
-      await onDeleteCategory(category.id);
-      setLoading(false);
+      try {
+        // API call to delete category
+        const response = await axios.delete(`http://localhost:3000/api/categories/${category.id}`);
+        
+        if (response.data.success) {
+          onDeleteCategory(category.id);
+        }
+      } catch (error) {
+        console.error('Error deleting category:', error);
+        alert('Cannot delete category that is being used by donations.');
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -53,7 +97,7 @@ export default function KnowledgeCategoryManager({ categories, onAddCategory, on
           type="text"
           value={newCategory}
           onChange={(e) => setNewCategory(e.target.value)}
-          placeholder="New category name"
+          placeholder="New donation category name"
           className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
           disabled={loading}
         />
@@ -129,7 +173,7 @@ export default function KnowledgeCategoryManager({ categories, onAddCategory, on
       </div>
 
       <div className="text-xs text-gray-500 mt-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
-        <strong className="font-medium">Note:</strong> Categories used by existing articles cannot be deleted. Please reassign or delete those articles first.
+        <strong className="font-medium">Note:</strong> Categories used by existing donations cannot be deleted. Please reassign or delete those donations first.
       </div>
     </div>
   );

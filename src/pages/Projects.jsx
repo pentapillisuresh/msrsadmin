@@ -1,44 +1,67 @@
-import React, { useState } from 'react';
-import { useLocalStorage } from '../hooks/useLocalStorage';
+// Projects.jsx (Main Component)
+import React, { useState, useEffect } from 'react';
 import ProjectForm from '../components/Projects/ProjectForm';
 import ProjectList from '../components/Projects/ProjectList';
 import ProjectView from '../components/Projects/ProjectView';
 import CategoryManager from '../components/Projects/CategoryManager';
 import { Plus, X, FolderPlus } from 'lucide-react';
+import {api} from '../services/ApiService';
 
 export default function Projects() {
-  const [projects, setProjects] = useLocalStorage('c3r_projects', []);
-  const [categories, setCategories] = useLocalStorage('c3r_categories', [
-    'Education',
-    'Healthcare',
-    'Environment',
-    'Community Development',
-    'Women Empowerment'
-  ]);
+  const [projects, setProjects] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [showView, setShowView] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
   const [viewingProject, setViewingProject] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const handleSave = (projectData) => {
+  // Fetch projects from API
+  const fetchProjects = async () => {
+    try {
+      const response = await api.get('/projects/');
+
+      if (response.success) {
+        setProjects(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch categories from API
+  const fetchCategories = async () => {
+    try {
+      const response = await api.get('/categories/?categoryRelated=project');
+
+      if (response.success) {
+        setCategories(response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchProjects();
+    fetchCategories();
+  }, []);
+
+  const handleSave = (savedProject) => {
     if (editingProject) {
-      setProjects(projects.map(p => p.id === editingProject.id ? { ...projectData, id: p.id } : p));
+      setProjects(projects.map(p => p.id === savedProject.id ? savedProject : p));
     } else {
-      setProjects([...projects, { 
-        ...projectData, 
-        id: Date.now(), 
-        createdAt: new Date().toISOString() 
-      }]);
+      setProjects([savedProject, ...projects]);
     }
     setShowForm(false);
     setEditingProject(null);
   };
 
   const handleDelete = (id) => {
-    if (window.confirm('Are you sure you want to delete this project?')) {
-      setProjects(projects.filter(p => p.id !== id));
-    }
+    setProjects(projects.filter(p => p.id !== id));
   };
 
   const handleEdit = (project) => {
@@ -56,33 +79,28 @@ export default function Projects() {
   };
 
   const handleAddCategory = (newCategory) => {
-    if (!categories.includes(newCategory)) {
-      setCategories([...categories, newCategory]);
-    }
+    setCategories([...categories, newCategory]);
   };
 
-  const handleDeleteCategory = (categoryToDelete) => {
-    const projectsUsingCategory = projects.filter(p => p.category === categoryToDelete);
-    if (projectsUsingCategory.length > 0) {
-      alert(`Cannot delete category "${categoryToDelete}" because it is used by ${projectsUsingCategory.length} project(s). Please reassign or delete those projects first.`);
-      return false;
-    }
-    setCategories(categories.filter(c => c !== categoryToDelete));
-    return true;
+  const handleDeleteCategory = (categoryId) => {
+    setCategories(categories.filter(c => c.id !== categoryId));
   };
 
-  const handleUpdateCategory = (oldCategory, newCategory) => {
-    if (oldCategory === newCategory) return;
-    if (categories.includes(newCategory)) {
-      alert(`Category "${newCategory}" already exists!`);
-      return false;
-    }
+  const handleUpdateCategory = (categoryId, updatedCategory) => {
+    setCategories(categories.map(c => c.id === categoryId ? updatedCategory : c));
+    // Also update projects that use this category
     setProjects(projects.map(p => 
-      p.category === oldCategory ? { ...p, category: newCategory } : p
+      p.categoryId === categoryId ? { ...p, Category: updatedCategory } : p
     ));
-    setCategories(categories.map(c => c === oldCategory ? newCategory : c));
-    return true;
   };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="text-gray-500">Loading projects...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -172,6 +190,7 @@ export default function Projects() {
         onView={handleView}
         onStatusChange={handleStatusChange}
         categories={categories}
+        setProjects={setProjects}
       />
     </div>
   );

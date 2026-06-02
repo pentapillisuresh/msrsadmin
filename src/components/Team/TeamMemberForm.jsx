@@ -1,15 +1,16 @@
+// src/components/Team/TeamMemberForm.jsx
 import React, { useState } from 'react';
 import { User, Upload, X } from 'lucide-react';
 
-export default function TeamMemberForm({ initialData, onSave, onCancel, categories = [] }) {
+export default function TeamMemberForm({ initialData, onSave, onCancel, categories = [], submitting = false }) {
   const [formData, setFormData] = useState({
     name: initialData?.name || '',
     role: initialData?.role || '',
-    category: initialData?.category || (categories[0] || ''),
+    categoryId: initialData?.categoryId || (categories[0]?.id || ''),
     email: initialData?.email || '',
-    phone: initialData?.phone || '',
+    phone: initialData?.phoneNumber || '',
     image: null,
-    imagePreview: initialData?.image || null
+    imagePreview: initialData?.image ? `http://localhost:3000${initialData.image}` : null
   });
 
   const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -43,11 +44,11 @@ export default function TeamMemberForm({ initialData, onSave, onCancel, categori
 
   const handleSubmit = (e) => { 
     e.preventDefault(); 
-    const saveData = {
-      ...formData,
-      image: formData.imagePreview || null
-    };
-    onSave(saveData);
+    if (!formData.name || !formData.role || !formData.categoryId) {
+      alert('Please fill all required fields');
+      return;
+    }
+    onSave(formData);
   };
 
   return (
@@ -71,7 +72,7 @@ export default function TeamMemberForm({ initialData, onSave, onCancel, categori
             )}
           </div>
           <div className="flex-1">
-            <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+            <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
               <Upload className="w-4 h-4 text-gray-500" />
               <span className="text-sm text-gray-600">Upload Photo</span>
               <input type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
@@ -83,37 +84,87 @@ export default function TeamMemberForm({ initialData, onSave, onCancel, categori
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
-        <input name="name" value={formData.name} onChange={handleChange} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" required />
+        <input 
+          name="name" 
+          value={formData.name} 
+          onChange={handleChange} 
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" 
+          required 
+        />
       </div>
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Role *</label>
-        <input name="role" value={formData.role} onChange={handleChange} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="e.g., Project Manager" required />
+        <input 
+          name="role" 
+          value={formData.role} 
+          onChange={handleChange} 
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" 
+          placeholder="e.g., Chairman, CEO, Director" 
+          required 
+        />
       </div>
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
-        <select name="category" value={formData.category} onChange={handleChange} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" required>
-          {categories.length === 0 && <option value="">Loading...</option>}
+        <select 
+          name="categoryId" 
+          value={formData.categoryId} 
+          onChange={handleChange} 
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" 
+          required
+        >
+          <option value="">Select Category</option>
+          {categories.length === 0 && <option value="" disabled>No categories available. Please add categories first.</option>}
           {categories.map(cat => (
-            <option key={cat} value={cat}>{cat}</option>
+            <option key={cat.id} value={cat.id}>{cat.name}</option>
           ))}
         </select>
+        {categories.length === 0 && (
+          <p className="text-xs text-amber-600 mt-1">
+            No categories available. Click "Manage Categories" to add team categories.
+          </p>
+        )}
       </div>
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-        <input type="email" name="email" value={formData.email} onChange={handleChange} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="member@example.com" />
+        <input 
+          type="email" 
+          name="email" 
+          value={formData.email} 
+          onChange={handleChange} 
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" 
+          placeholder="member@example.com" 
+        />
       </div>
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-        <input name="phone" value={formData.phone} onChange={handleChange} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="+91 98765 43210" />
+        <input 
+          name="phone" 
+          value={formData.phone} 
+          onChange={handleChange} 
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" 
+          placeholder="+91 98765 43210" 
+        />
       </div>
 
       <div className="flex justify-end gap-3 pt-4">
-        <button type="button" onClick={onCancel} className="px-4 py-2 border rounded-lg hover:bg-gray-50 text-sm">Cancel</button>
-        <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm">Save Member</button>
+        <button 
+          type="button" 
+          onClick={onCancel} 
+          className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+        >
+          Cancel
+        </button>
+        <button 
+          type="submit" 
+          disabled={submitting}
+          className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {submitting ? 'Saving...' : 'Save Member'}
+        </button>
       </div>
     </form>
   );

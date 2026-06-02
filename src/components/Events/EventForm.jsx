@@ -1,16 +1,17 @@
+// src/components/Events/EventForm.jsx
 import React, { useState } from 'react';
 
-export default function EventForm({ initialData, onSave, onCancel, categories = [] }) {
+export default function EventForm({ initialData, onSave, onCancel, categories = [], updating = false }) {
   const [formData, setFormData] = useState({
-    title: initialData?.title || '',
+    title: initialData?.eventName || '',
     description: initialData?.description || '',
     date: initialData?.date || '',
     time: initialData?.time || '',
     location: initialData?.location || '',
-    category: initialData?.category || (categories[0] || ''),
-    image: initialData?.image || null,
-    imagePreview: initialData?.image || null,
-    status: initialData?.status || 'Upcoming'
+    categoryId: initialData?.categoryId || (categories[0]?.id || ''),
+    imageFile: null,
+    imagePreview: initialData?.image ? `http://localhost:3000${initialData.image}` : null,
+    status: initialData?.status || 'upcoming'
   });
 
   const handleChange = (e) => {
@@ -24,7 +25,7 @@ export default function EventForm({ initialData, onSave, onCancel, categories = 
       reader.onloadend = () => {
         setFormData({ 
           ...formData, 
-          image: file,
+          imageFile: file,
           imagePreview: reader.result 
         });
       };
@@ -34,11 +35,7 @@ export default function EventForm({ initialData, onSave, onCancel, categories = 
 
   const handleSubmit = (e) => { 
     e.preventDefault(); 
-    const saveData = {
-      ...formData,
-      image: formData.imagePreview || formData.image
-    };
-    onSave(saveData);
+    onSave(formData);
   };
 
   return (
@@ -57,20 +54,19 @@ export default function EventForm({ initialData, onSave, onCancel, categories = 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
         <select
-          name="category"
-          value={formData.category}
+          name="categoryId"
+          value={formData.categoryId}
           onChange={handleChange}
           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
           required
         >
           {categories.length === 0 && <option value="">Loading...</option>}
           {categories.map(cat => (
-            <option key={cat} value={cat}>{cat}</option>
+            <option key={cat.id} value={cat.id}>{cat.name}</option>
           ))}
         </select>
       </div>
 
-      {/* Rest of the form same as before */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
         <textarea 
@@ -140,7 +136,7 @@ export default function EventForm({ initialData, onSave, onCancel, categories = 
               <img src={formData.imagePreview} alt="Preview" className="h-32 w-32 object-cover rounded-lg shadow-md" />
               <button
                 type="button"
-                onClick={() => setFormData({ ...formData, image: null, imagePreview: null })}
+                onClick={() => setFormData({ ...formData, imageFile: null, imagePreview: null })}
                 className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -160,9 +156,10 @@ export default function EventForm({ initialData, onSave, onCancel, categories = 
           onChange={handleChange} 
           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
         >
-          <option>Upcoming</option>
-          <option>Completed</option>
-          <option>Cancelled</option>
+          <option value="upcoming">Upcoming</option>
+          <option value="ongoing">Ongoing</option>
+          <option value="completed">Completed</option>
+          <option value="cancelled">Cancelled</option>
         </select>
       </div>
 
@@ -170,8 +167,8 @@ export default function EventForm({ initialData, onSave, onCancel, categories = 
         <button type="button" onClick={onCancel} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">
           Cancel
         </button>
-        <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm">
-          Save Event
+        <button type="submit" disabled={updating} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm disabled:opacity-50">
+          {updating ? 'Saving...' : 'Save Event'}
         </button>
       </div>
     </form>

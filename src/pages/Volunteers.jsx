@@ -1,38 +1,41 @@
-import React, { useState } from 'react';
-import { useLocalStorage } from '../hooks/useLocalStorage';
-import { Check, X, Phone, Mail, UserPlus, Eye, Calendar, Briefcase, Heart, BookOpen, Users, Plus, Trash2, Edit, Ban, RotateCcw } from 'lucide-react';
+// src/pages/Volunteers.jsx
+import React, { useState, useEffect } from 'react';
+import { api } from '../services/ApiService';
+import { Check, X, Phone, Mail, UserPlus, Eye, Calendar, Briefcase, Heart, BookOpen, Users, Plus, Trash2, Edit, Ban, RotateCcw, FolderPlus } from 'lucide-react';
+import VolunteerCategoryManager from '../components/Volunteers/VolunteerCategoryManager';
 
 export default function Volunteers() {
-  const [volunteers, setVolunteers] = useLocalStorage('c3r_volunteers', []);
+  const [volunteers, setVolunteers] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [showForm, setShowForm] = useState(false);
+  const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [selectedVolunteer, setSelectedVolunteer] = useState(null);
   const [viewModal, setViewModal] = useState(false);
   const [editingVolunteer, setEditingVolunteer] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [filterCategory, setFilterCategory] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
+
   const [formData, setFormData] = useState({
-    personalInfo: {
-      fullName: '',
-      dob: '',
-      gender: '',
-      phone: '',
-      email: '',
-      address: ''
-    },
-    applicationType: {
-      applyAs: '',
-      mode: ''
-    },
-    areasOfInterest: [],
-    customArea: '',
-    skillsAndQualification: {
-      degree: '',
-      skills: ''
-    },
-    availability: {
-      startDate: '',
-      duration: ''
-    },
+    name: '',
+    email: '',
+    phoneNumber: '',
+    gender: '',
+    dob: '',
+    address: '',
+    qualification: '',
+    occupation: '',
+    maritalStatus: 'single',
+    applicationType: '',
+    mode: '',
+    customerArea: '',
+    availableStartDateTime: '',
+    availableEndDateTime: '',
     motivation: '',
-    declaration: false
+    feedbackSuggestion: '',
+    status: 'pending',
+    categoryId: ''
   });
 
   const areasOfInterestOptions = [
@@ -57,176 +60,411 @@ export default function Volunteers() {
     'Other'
   ];
 
-  const handleAccept = (id) => {
-    setVolunteers(volunteers.map(v => v.id === id ? { ...v, status: 'Accepted' } : v));
-  };
-
-  const handleReject = (id) => {
-    setVolunteers(volunteers.map(v => v.id === id ? { ...v, status: 'Rejected' } : v));
-  };
-
-  const handleBlock = (id) => {
-    if (window.confirm('Block this volunteer? They will no longer be able to apply or be contacted.')) {
-      setVolunteers(volunteers.map(v => v.id === id ? { ...v, status: 'Blocked' } : v));
+  // Fetch volunteers from API
+  const fetchVolunteers = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get('/volunteers');
+      if (response.success) {
+        setVolunteers(response.data.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching volunteers:', error);
+      alert('Error fetching volunteers. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleUnblock = (id) => {
+  // Fetch categories
+  const fetchCategories = async () => {
+    try {
+      const response = await api.get('/categories/?categoryRelated=volunteer');
+      if (response.success) {
+        setCategories(response.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchVolunteers();
+    fetchCategories();
+  }, []);
+
+  // Category management handlers
+  const handleAddCategory = async (newCategoryName) => {
+    try {
+      const response = await api.post('/categories/', {
+        name: newCategoryName,
+        categoryRelated: 'volunteer',
+        description: `Volunteer opportunities related to ${newCategoryName}`,
+        status: 'active'
+      });
+      
+      if (response.success) {
+        setCategories([...categories, response.data]);
+        alert('Category added successfully!');
+        return true;
+      }
+    } catch (error) {
+      console.error('Error adding category:', error);
+      alert('Error adding category. Please try again.');
+      return false;
+    }
+  };
+
+  const handleDeleteCategory = async (categoryId) => {
+    const volunteersUsingCategory = volunteers.filter(v => v.categoryId === categoryId);
+    if (volunteersUsingCategory.length > 0) {
+      alert(`Cannot delete category because it is used by ${volunteersUsingCategory.length} volunteer(s). Please reassign or delete those volunteers first.`);
+      return false;
+    }
+    
+    try {
+      const response = await api.delete(`/categories/${categoryId}`);
+      if (response.success) {
+        setCategories(categories.filter(c => c.id !== categoryId));
+        alert('Category deleted successfully!');
+        return true;
+      }
+    } catch (error) {
+      console.error('Error deleting category:', error);
+      alert('Error deleting category. Please try again.');
+      return false;
+    }
+  };
+
+  const handleUpdateCategory = async (categoryId, newCategoryName) => {
+    const category = categories.find(c => c.id === categoryId);
+    if (category.name === newCategoryName) return true;
+    
+    if (categories.some(c => c.name === newCategoryName)) {
+      alert(`Category "${newCategoryName}" already exists!`);
+      return false;
+    }
+    
+    try {
+      const response = await api.put(`/categories/${categoryId}`, {
+        name: newCategoryName,
+        categoryRelated: 'volunteer',
+        description: `Volunteer opportunities related to ${newCategoryName}`,
+        status: 'active'
+      });
+      
+      if (response.success) {
+        setCategories(categories.map(c => 
+          c.id === categoryId ? response.data : c
+        ));
+        alert('Category updated successfully!');
+        return true;
+      }
+    } catch (error) {
+      console.error('Error updating category:', error);
+      alert('Error updating category. Please try again.');
+      return false;
+    }
+  };
+
+  const handleAccept = async (id) => {
+    try {
+      const response = await api.put(`/volunteers/${id}`, { status: 'approved' });
+      if (response.success) {
+        await fetchVolunteers();
+      }
+    } catch (error) {
+      console.error('Error accepting volunteer:', error);
+      alert('Error updating volunteer status. Please try again.');
+    }
+  };
+
+  const handleReject = async (id) => {
+    try {
+      const response = await api.put(`/volunteers/${id}`, { status: 'rejected' });
+      if (response.success) {
+        await fetchVolunteers();
+      }
+    } catch (error) {
+      console.error('Error rejecting volunteer:', error);
+      alert('Error updating volunteer status. Please try again.');
+    }
+  };
+
+  const handleBlock = async (id) => {
+    if (window.confirm('Block this volunteer? They will no longer be able to apply or be contacted.')) {
+      try {
+        const response = await api.put(`/volunteers/${id}`, { status: 'inactive' });
+        if (response.success) {
+          await fetchVolunteers();
+        }
+      } catch (error) {
+        console.error('Error blocking volunteer:', error);
+        alert('Error updating volunteer status. Please try again.');
+      }
+    }
+  };
+
+  const handleUnblock = async (id) => {
     if (window.confirm('Unblock this volunteer? Their status will be set back to Pending.')) {
-      setVolunteers(volunteers.map(v => v.id === id ? { ...v, status: 'Pending' } : v));
+      try {
+        const response = await api.put(`/volunteers/${id}`, { status: 'pending' });
+        if (response.success) {
+          await fetchVolunteers();
+        }
+      } catch (error) {
+        console.error('Error unblocking volunteer:', error);
+        alert('Error updating volunteer status. Please try again.');
+      }
     }
   };
 
   const contactVolunteer = (volunteer) => {
-    window.location.href = `mailto:${volunteer.email || volunteer.personalInfo?.email}`;
+    window.location.href = `mailto:${volunteer.email}`;
   };
 
-  const handleViewVolunteer = (volunteer) => {
-    setSelectedVolunteer(volunteer);
-    setViewModal(true);
-  };
-
-  const handleEditVolunteer = (volunteer) => {
-    setEditingVolunteer(volunteer);
-    if (volunteer.personalInfo) {
-      setFormData(volunteer);
-    } else {
-      // Convert old format
-      setFormData({
-        personalInfo: {
-          fullName: volunteer.name || '',
-          dob: '',
-          gender: '',
-          phone: volunteer.phone || '',
-          email: volunteer.email || '',
-          address: ''
-        },
-        applicationType: {
-          applyAs: volunteer.type || 'Volunteer',
-          mode: 'Online'
-        },
-        areasOfInterest: [],
-        customArea: '',
-        skillsAndQualification: {
-          degree: '',
-          skills: volunteer.skills || ''
-        },
-        availability: {
-          startDate: '',
-          duration: volunteer.availability || ''
-        },
-        motivation: '',
-        declaration: false
-      });
-    }
-    setShowForm(true);
-  };
-
-  const handleInputChange = (section, field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      [section]: {
-        ...prev[section],
-        [field]: value
+  const handleViewVolunteer = async (volunteer) => {
+    try {
+      const response = await api.get(`/volunteers/${volunteer.id}`);
+      if (response.success) {
+        setSelectedVolunteer(response.data);
+        setViewModal(true);
       }
-    }));
-  };
-
-  const handleAreaOfInterestToggle = (area) => {
-    setFormData(prev => ({
-      ...prev,
-      areasOfInterest: prev.areasOfInterest.includes(area)
-        ? prev.areasOfInterest.filter(a => a !== area)
-        : [...prev.areasOfInterest, area]
-    }));
-  };
-
-  const handleAddCustomArea = () => {
-    if (formData.customArea && !formData.areasOfInterest.includes(formData.customArea)) {
-      setFormData(prev => ({
-        ...prev,
-        areasOfInterest: [...prev.areasOfInterest, prev.customArea],
-        customArea: ''
-      }));
+    } catch (error) {
+      console.error('Error fetching volunteer details:', error);
+      alert('Error loading volunteer details. Please try again.');
     }
   };
 
-  const handleRemoveArea = (area) => {
-    setFormData(prev => ({
-      ...prev,
-      areasOfInterest: prev.areasOfInterest.filter(a => a !== area)
-    }));
+  const handleEditVolunteer = async (volunteer) => {
+    try {
+      const response = await api.get(`/volunteers/${volunteer.id}`);
+      if (response.success) {
+        const volunteerData = response.data;
+        setEditingVolunteer(volunteerData);
+        setFormData({
+          name: volunteerData.name || '',
+          email: volunteerData.email || '',
+          phoneNumber: volunteerData.phoneNumber || '',
+          gender: volunteerData.gender || '',
+          dob: volunteerData.dob || '',
+          address: volunteerData.address || '',
+          qualification: volunteerData.qualification || '',
+          occupation: volunteerData.occupation || '',
+          maritalStatus: volunteerData.maritalStatus || 'single',
+          applicationType: volunteerData.applicationType || '',
+          mode: volunteerData.mode || '',
+          customerArea: volunteerData.customerArea || '',
+          availableStartDateTime: volunteerData.availableStartDateTime || '',
+          availableEndDateTime: volunteerData.availableEndDateTime || '',
+          motivation: volunteerData.motivation || '',
+          feedbackSuggestion: volunteerData.feedbackSuggestion || '',
+          status: volunteerData.status || 'pending',
+          categoryId: volunteerData.categoryId || ''
+        });
+        setShowForm(true);
+      }
+    } catch (error) {
+      console.error('Error fetching volunteer details:', error);
+      alert('Error loading volunteer details. Please try again.');
+    }
   };
 
-  const handleSubmit = (e) => {
+  const handleInputChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (editingVolunteer) {
-      setVolunteers(volunteers.map(v => v.id === editingVolunteer.id ? { ...formData, id: v.id, status: v.status, appliedAt: v.appliedAt } : v));
-    } else {
-      const newVolunteer = {
-        id: Date.now(),
-        ...formData,
-        status: 'Pending',
-        appliedAt: new Date().toISOString()
-      };
-      setVolunteers([...volunteers, newVolunteer]);
+    
+    // Validation
+    if (!formData.name || !formData.email || !formData.phoneNumber || !formData.gender || !formData.dob || !formData.address) {
+      alert('Please fill all required fields');
+      return;
     }
-    setShowForm(false);
-    setEditingVolunteer(null);
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      alert('Please enter a valid email address');
+      return;
+    }
+
+    if (formData.phoneNumber.length < 10) {
+      alert('Please enter a valid phone number');
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      let response;
+      if (editingVolunteer) {
+        response = await api.put(`/volunteers/${editingVolunteer.id}`, formData);
+      } else {
+        response = await api.post('/volunteers', formData);
+      }
+
+      if (response.success) {
+        await fetchVolunteers();
+        setShowForm(false);
+        setEditingVolunteer(null);
+        resetForm();
+        alert(editingVolunteer ? 'Volunteer updated successfully!' : 'Volunteer added successfully!');
+      }
+    } catch (error) {
+      console.error('Error saving volunteer:', error);
+      alert('Error saving volunteer. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (window.confirm('Are you sure you want to delete this volunteer record?')) {
+      try {
+        const response = await api.delete(`/volunteers/${id}`);
+        if (response.success) {
+          await fetchVolunteers();
+          alert('Volunteer deleted successfully!');
+        }
+      } catch (error) {
+        console.error('Error deleting volunteer:', error);
+        alert('Error deleting volunteer. Please try again.');
+      }
+    }
+  };
+
+  const resetForm = () => {
     setFormData({
-      personalInfo: {
-        fullName: '',
-        dob: '',
-        gender: '',
-        phone: '',
-        email: '',
-        address: ''
-      },
-      applicationType: {
-        applyAs: '',
-        mode: ''
-      },
-      areasOfInterest: [],
-      customArea: '',
-      skillsAndQualification: {
-        degree: '',
-        skills: ''
-      },
-      availability: {
-        startDate: '',
-        duration: ''
-      },
+      name: '',
+      email: '',
+      phoneNumber: '',
+      gender: '',
+      dob: '',
+      address: '',
+      qualification: '',
+      occupation: '',
+      maritalStatus: 'single',
+      applicationType: '',
+      mode: '',
+      customerArea: '',
+      availableStartDateTime: '',
+      availableEndDateTime: '',
       motivation: '',
-      declaration: false
+      feedbackSuggestion: '',
+      status: 'pending',
+      categoryId: ''
     });
   };
 
-  // Helper functions
-  const getVolunteerName = (volunteer) => volunteer.personalInfo?.fullName || volunteer.name || 'Unknown';
-  const getVolunteerType = (volunteer) => volunteer.applicationType?.applyAs || volunteer.type || 'Volunteer';
-  const getVolunteerSkills = (volunteer) => volunteer.skillsAndQualification?.skills || volunteer.skills || 'Not specified';
-  const getVolunteerDuration = (volunteer) => volunteer.availability?.duration || volunteer.availability || 'Not specified';
-  const getVolunteerPhone = (volunteer) => volunteer.personalInfo?.phone || volunteer.phone || 'N/A';
-  const getVolunteerEmail = (volunteer) => volunteer.personalInfo?.email || volunteer.email || '';
-  const getVolunteerDate = (volunteer) => volunteer.appliedAt ? new Date(volunteer.appliedAt).toLocaleDateString() : 'N/A';
-  const getVolunteerDegree = (volunteer) => volunteer.skillsAndQualification?.degree || 'Not specified';
+  const openAddForm = () => {
+    setEditingVolunteer(null);
+    resetForm();
+    setShowForm(true);
+  };
+
+  const filteredVolunteers = volunteers.filter(v => {
+    const matchesCategory = filterCategory === 'all' || v.categoryId === filterCategory;
+    const matchesStatus = filterStatus === 'all' || v.status === filterStatus;
+    return matchesCategory && matchesStatus;
+  });
+
+  const getStatusColor = (status) => {
+    switch(status) {
+      case 'approved': return 'bg-green-100 text-green-700';
+      case 'active': return 'bg-blue-100 text-blue-700';
+      case 'pending': return 'bg-yellow-100 text-yellow-700';
+      case 'rejected': return 'bg-red-100 text-red-700';
+      case 'inactive': return 'bg-gray-100 text-gray-700';
+      default: return 'bg-gray-100 text-gray-700';
+    }
+  };
+
+  const formatStatus = (status) => {
+    return status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Pending';
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="text-gray-500">Loading volunteers...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center flex-wrap gap-3">
         <h2 className="text-lg font-semibold">Volunteer & Internship Management</h2>
-        <button
-          onClick={() => {
-            setEditingVolunteer(null);
-            setShowForm(true);
-          }}
-          className="btn-primary text-sm flex items-center gap-1 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
-        >
-          <UserPlus className="w-4 h-4" /> Add Application
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowCategoryManager(true)}
+            className="text-sm flex items-center gap-1 bg-gray-100 px-3 py-2 rounded-lg hover:bg-gray-200 transition-colors"
+          >
+            <FolderPlus className="w-4 h-4" /> Manage Categories
+          </button>
+          <button
+            onClick={openAddForm}
+            className="text-sm flex items-center gap-1 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            <UserPlus className="w-4 h-4" /> Add Application
+          </button>
+        </div>
       </div>
 
-      {/* Application Form Modal (unchanged) */}
+      {/* Filters */}
+      <div className="flex gap-3 flex-wrap">
+        <select
+          value={filterCategory}
+          onChange={(e) => setFilterCategory(e.target.value)}
+          className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+        >
+          <option value="all">All Categories</option>
+          {categories.map(cat => (
+            <option key={cat.id} value={cat.id}>{cat.name}</option>
+          ))}
+        </select>
+
+        <select
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value)}
+          className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+        >
+          <option value="all">All Status</option>
+          <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
+          <option value="active">Active</option>
+          <option value="rejected">Rejected</option>
+          <option value="inactive">Inactive</option>
+        </select>
+      </div>
+
+      {/* Category Manager Modal */}
+      {showCategoryManager && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+            <div className="border-b p-4 flex justify-between items-center sticky top-0 bg-white">
+              <h3 className="font-semibold text-lg">Manage Volunteer Categories</h3>
+              <button 
+                onClick={() => setShowCategoryManager(false)} 
+                className="hover:bg-gray-100 p-1 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6">
+              <VolunteerCategoryManager 
+                categories={categories}
+                onAddCategory={handleAddCategory}
+                onDeleteCategory={handleDeleteCategory}
+                onUpdateCategory={handleUpdateCategory}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Application Form Modal */}
       {showForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
@@ -247,54 +485,74 @@ export default function Volunteers() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
-                      <input type="text" required value={formData.personalInfo.fullName} onChange={(e) => handleInputChange('personalInfo', 'fullName', e.target.value)} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                      <input type="text" name="name" required value={formData.name} onChange={handleInputChange} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth *</label>
-                      <input type="date" required value={formData.personalInfo.dob} onChange={(e) => handleInputChange('personalInfo', 'dob', e.target.value)} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                      <input type="date" name="dob" required value={formData.dob} onChange={handleInputChange} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Gender *</label>
-                      <select required value={formData.personalInfo.gender} onChange={(e) => handleInputChange('personalInfo', 'gender', e.target.value)} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                      <select name="gender" required value={formData.gender} onChange={handleInputChange} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500">
                         <option value="">Select Gender</option>
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                        <option value="Other">Other</option>
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Marital Status *</label>
+                      <select name="maritalStatus" required value={formData.maritalStatus} onChange={handleInputChange} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                        <option value="single">Single</option>
+                        <option value="married">Married</option>
+                        <option value="divorced">Divorced</option>
+                        <option value="widowed">Widowed</option>
                       </select>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number *</label>
-                      <input type="tel" required value={formData.personalInfo.phone} onChange={(e) => handleInputChange('personalInfo', 'phone', e.target.value)} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                      <input type="tel" name="phoneNumber" required value={formData.phoneNumber} onChange={handleInputChange} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Email Address *</label>
-                      <input type="email" required value={formData.personalInfo.email} onChange={(e) => handleInputChange('personalInfo', 'email', e.target.value)} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                      <input type="email" name="email" required value={formData.email} onChange={handleInputChange} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" />
                     </div>
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">Address *</label>
-                      <textarea required rows="2" value={formData.personalInfo.address} onChange={(e) => handleInputChange('personalInfo', 'address', e.target.value)} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                      <textarea name="address" required rows="2" value={formData.address} onChange={handleInputChange} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" />
                     </div>
                   </div>
                 </div>
 
-                {/* Application Type */}
+                {/* Professional Information */}
                 <div className="space-y-4">
                   <h4 className="font-semibold text-gray-900 border-b pb-2 flex items-center gap-2">
                     <Briefcase className="w-5 h-5 text-indigo-600" />
-                    Application Type
+                    Professional Information
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Apply As *</label>
-                      <select required value={formData.applicationType.applyAs} onChange={(e) => handleInputChange('applicationType', 'applyAs', e.target.value)} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Qualification</label>
+                      <select name="qualification" value={formData.qualification} onChange={handleInputChange} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                        <option value="">Select Qualification</option>
+                        {degreeOptions.map(deg => <option key={deg} value={deg}>{deg}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Occupation</label>
+                      <input type="text" name="occupation" value={formData.occupation} onChange={handleInputChange} placeholder="e.g., Student, Professional, Retired" className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Application Type</label>
+                      <select name="applicationType" value={formData.applicationType} onChange={handleInputChange} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500">
                         <option value="">Select Type</option>
                         <option value="Volunteer">Volunteer</option>
                         <option value="Intern">Intern</option>
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Mode *</label>
-                      <select required value={formData.applicationType.mode} onChange={(e) => handleInputChange('applicationType', 'mode', e.target.value)} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Mode</label>
+                      <select name="mode" value={formData.mode} onChange={handleInputChange} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500">
                         <option value="">Select Mode</option>
                         <option value="Online">Online</option>
                         <option value="Offline">Offline</option>
@@ -304,54 +562,33 @@ export default function Volunteers() {
                   </div>
                 </div>
 
-                {/* Areas of Interest */}
+                {/* Category Dropdown */}
                 <div className="space-y-4">
                   <h4 className="font-semibold text-gray-900 border-b pb-2 flex items-center gap-2">
-                    <Heart className="w-5 h-5 text-indigo-600" />
-                    Areas of Interest
+                    <FolderPlus className="w-5 h-5 text-indigo-600" />
+                    Category
                   </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {areasOfInterestOptions.map(area => (
-                      <label key={area} className="flex items-center space-x-2 cursor-pointer">
-                        <input type="checkbox" checked={formData.areasOfInterest.includes(area)} onChange={() => handleAreaOfInterestToggle(area)} className="w-4 h-4 text-indigo-600 rounded border-gray-300" />
-                        <span className="text-sm text-gray-700">{area}</span>
-                      </label>
-                    ))}
-                  </div>
-                  <div className="flex gap-2 mt-2">
-                    <input type="text" placeholder="Add Custom Area of Interest" value={formData.customArea} onChange={(e) => setFormData(prev => ({ ...prev, customArea: e.target.value }))} className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" />
-                    <button type="button" onClick={handleAddCustomArea} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"><Plus className="w-4 h-4" /></button>
-                  </div>
-                  {formData.areasOfInterest.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {formData.areasOfInterest.map(area => (
-                        <span key={area} className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm">
-                          {area}
-                          <button type="button" onClick={() => handleRemoveArea(area)} className="hover:text-red-600"><X className="w-3 h-3" /></button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Skills & Qualification */}
-                <div className="space-y-4">
-                  <h4 className="font-semibold text-gray-900 border-b pb-2 flex items-center gap-2">
-                    <BookOpen className="w-5 h-5 text-indigo-600" />
-                    Skills & Qualification
-                  </h4>
-                  <div className="grid grid-cols-1 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Highest Degree *</label>
-                      <select required value={formData.skillsAndQualification.degree} onChange={(e) => handleInputChange('skillsAndQualification', 'degree', e.target.value)} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500">
-                        <option value="">Select Degree</option>
-                        {degreeOptions.map(deg => <option key={deg} value={deg}>{deg}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Relevant Skills *</label>
-                      <textarea required rows="2" value={formData.skillsAndQualification.skills} onChange={(e) => handleInputChange('skillsAndQualification', 'skills', e.target.value)} placeholder="e.g., Communication, Leadership, Teaching, Digital Marketing" className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" />
-                    </div>
+                  <div>
+                    <select
+                      name="categoryId"
+                      value={formData.categoryId}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    >
+                      <option value="">Select Category</option>
+                      {categories.length === 0 ? (
+                        <option value="" disabled>No categories available. Please add categories first.</option>
+                      ) : (
+                        categories.map(cat => (
+                          <option key={cat.id} value={cat.id}>{cat.name}</option>
+                        ))
+                      )}
+                    </select>
+                    {categories.length === 0 && (
+                      <p className="text-xs text-amber-600 mt-1">
+                        No categories available. Click "Manage Categories" to add volunteer categories.
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -363,20 +600,25 @@ export default function Volunteers() {
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Start Date *</label>
-                      <input type="date" required value={formData.availability.startDate} onChange={(e) => handleInputChange('availability', 'startDate', e.target.value)} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Start Date & Time</label>
+                      <input type="datetime-local" name="availableStartDateTime" value={formData.availableStartDateTime} onChange={handleInputChange} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Duration *</label>
-                      <select required value={formData.availability.duration} onChange={(e) => handleInputChange('availability', 'duration', e.target.value)} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500">
-                        <option value="">Select Duration</option>
-                        <option value="1 month">1 month</option>
-                        <option value="3 months">3 months</option>
-                        <option value="6 months">6 months</option>
-                        <option value="1 year">1 year</option>
-                        <option value="Flexible">Flexible</option>
-                      </select>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">End Date & Time</label>
+                      <input type="datetime-local" name="availableEndDateTime" value={formData.availableEndDateTime} onChange={handleInputChange} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" />
                     </div>
+                  </div>
+                </div>
+
+                {/* Areas of Interest */}
+                <div className="space-y-4">
+                  <h4 className="font-semibold text-gray-900 border-b pb-2 flex items-center gap-2">
+                    <Heart className="w-5 h-5 text-indigo-600" />
+                    Areas of Interest
+                  </h4>
+                  <div>
+                    <input type="text" name="customerArea" value={formData.customerArea} onChange={handleInputChange} placeholder="Enter areas of interest (comma separated)" className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                    <p className="text-xs text-gray-500 mt-1">e.g., Education, Healthcare, Environment, Women Empowerment</p>
                   </div>
                 </div>
 
@@ -387,22 +629,40 @@ export default function Volunteers() {
                     Motivation
                   </h4>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Why do you want to join us? *</label>
-                    <textarea required rows="4" value={formData.motivation} onChange={(e) => setFormData(prev => ({ ...prev, motivation: e.target.value }))} placeholder="Tell us about your motivation..." className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                    <textarea name="motivation" rows="4" value={formData.motivation} onChange={handleInputChange} placeholder="Why do you want to join us?" className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" />
                   </div>
                 </div>
 
-                {/* Declaration */}
+                {/* Feedback/Suggestions */}
                 <div className="space-y-4">
-                  <label className="flex items-start space-x-3 cursor-pointer">
-                    <input type="checkbox" required checked={formData.declaration} onChange={(e) => setFormData(prev => ({ ...prev, declaration: e.target.checked }))} className="w-4 h-4 text-indigo-600 rounded border-gray-300 mt-1" />
-                    <span className="text-sm text-gray-700">I hereby declare that the information provided is true and correct and I agree to abide by the rules and values of the Foundation.</span>
-                  </label>
+                  <h4 className="font-semibold text-gray-900 border-b pb-2 flex items-center gap-2">
+                    <BookOpen className="w-5 h-5 text-indigo-600" />
+                    Feedback & Suggestions
+                  </h4>
+                  <div>
+                    <textarea name="feedbackSuggestion" rows="3" value={formData.feedbackSuggestion} onChange={handleInputChange} placeholder="Any feedback or suggestions..." className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                  </div>
                 </div>
+
+                {/* Status (Only for edit) */}
+                {editingVolunteer && (
+                  <div className="space-y-4">
+                    <h4 className="font-semibold text-gray-900 border-b pb-2">Status</h4>
+                    <select name="status" value={formData.status} onChange={handleInputChange} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                      <option value="pending">Pending</option>
+                      <option value="approved">Approved</option>
+                      <option value="active">Active</option>
+                      <option value="rejected">Rejected</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </div>
+                )}
 
                 <div className="flex justify-end gap-3 pt-4 border-t">
                   <button type="button" onClick={() => { setShowForm(false); setEditingVolunteer(null); }} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
-                  <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">{editingVolunteer ? 'Update' : 'Submit'}</button>
+                  <button type="submit" disabled={submitting} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50">
+                    {submitting ? 'Saving...' : (editingVolunteer ? 'Update' : 'Submit')}
+                  </button>
                 </div>
               </form>
             </div>
@@ -410,7 +670,7 @@ export default function Volunteers() {
         </div>
       )}
 
-      {/* View Modal (unchanged) */}
+      {/* View Modal */}
       {viewModal && selectedVolunteer && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
@@ -421,75 +681,142 @@ export default function Volunteers() {
             <div className="p-6 space-y-4">
               <div className="flex justify-between items-start">
                 <div>
-                  <h4 className="text-xl font-bold text-gray-900">{getVolunteerName(selectedVolunteer)}</h4>
-                  <span className={`text-xs px-2 py-1 rounded-full inline-block mt-1 ${getVolunteerType(selectedVolunteer) === 'Volunteer' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
-                    {getVolunteerType(selectedVolunteer)}
-                  </span>
+                  <h4 className="text-xl font-bold text-gray-900">{selectedVolunteer.name}</h4>
+                  <div className="flex gap-2 mt-1">
+                    {selectedVolunteer.category && (
+                      <span className="text-xs px-2 py-1 rounded-full bg-purple-100 text-purple-700">
+                        {selectedVolunteer.category.name}
+                      </span>
+                    )}
+                    <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(selectedVolunteer.status)}`}>
+                      {formatStatus(selectedVolunteer.status)}
+                    </span>
+                  </div>
                 </div>
-                <span className={`text-xs px-2 py-1 rounded-full ${selectedVolunteer.status === 'Accepted' ? 'bg-green-100 text-green-700' : selectedVolunteer.status === 'Rejected' ? 'bg-red-100 text-red-700' : selectedVolunteer.status === 'Blocked' ? 'bg-gray-100 text-gray-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                  {selectedVolunteer.status}
-                </span>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div><p className="text-sm text-gray-500">Email</p><p className="text-sm font-medium">{getVolunteerEmail(selectedVolunteer)}</p></div>
-                <div><p className="text-sm text-gray-500">Phone</p><p className="text-sm font-medium">{getVolunteerPhone(selectedVolunteer)}</p></div>
-                {selectedVolunteer.personalInfo && (
-                  <>
-                    <div><p className="text-sm text-gray-500">DOB</p><p className="text-sm font-medium">{selectedVolunteer.personalInfo.dob}</p></div>
-                    <div><p className="text-sm text-gray-500">Gender</p><p className="text-sm font-medium">{selectedVolunteer.personalInfo.gender}</p></div>
-                    <div className="col-span-2"><p className="text-sm text-gray-500">Address</p><p className="text-sm font-medium">{selectedVolunteer.personalInfo.address}</p></div>
-                  </>
-                )}
-                <div><p className="text-sm text-gray-500">Mode</p><p className="text-sm font-medium">{selectedVolunteer.applicationType?.mode || 'N/A'}</p></div>
-                <div><p className="text-sm text-gray-500">Duration</p><p className="text-sm font-medium">{getVolunteerDuration(selectedVolunteer)}</p></div>
-                <div className="col-span-2"><p className="text-sm text-gray-500">Areas of Interest</p><div className="flex flex-wrap gap-1 mt-1">{selectedVolunteer.areasOfInterest?.map(area => <span key={area} className="text-xs px-2 py-1 bg-indigo-100 text-indigo-700 rounded-full">{area}</span>)}</div></div>
-                <div><p className="text-sm text-gray-500">Degree</p><p className="text-sm font-medium">{getVolunteerDegree(selectedVolunteer)}</p></div>
-                <div className="col-span-2"><p className="text-sm text-gray-500">Skills</p><p className="text-sm font-medium">{getVolunteerSkills(selectedVolunteer)}</p></div>
+                <div><p className="text-sm text-gray-500">Email</p><p className="text-sm font-medium">{selectedVolunteer.email}</p></div>
+                <div><p className="text-sm text-gray-500">Phone</p><p className="text-sm font-medium">{selectedVolunteer.phoneNumber}</p></div>
+                <div><p className="text-sm text-gray-500">DOB</p><p className="text-sm font-medium">{selectedVolunteer.dob}</p></div>
+                <div><p className="text-sm text-gray-500">Gender</p><p className="text-sm font-medium">{selectedVolunteer.gender}</p></div>
+                <div><p className="text-sm text-gray-500">Marital Status</p><p className="text-sm font-medium">{selectedVolunteer.maritalStatus}</p></div>
+                <div><p className="text-sm text-gray-500">Qualification</p><p className="text-sm font-medium">{selectedVolunteer.qualification || 'N/A'}</p></div>
+                <div><p className="text-sm text-gray-500">Occupation</p><p className="text-sm font-medium">{selectedVolunteer.occupation || 'N/A'}</p></div>
+                <div><p className="text-sm text-gray-500">Application Type</p><p className="text-sm font-medium">{selectedVolunteer.applicationType || 'N/A'}</p></div>
+                <div><p className="text-sm text-gray-500">Mode</p><p className="text-sm font-medium">{selectedVolunteer.mode || 'N/A'}</p></div>
+                <div className="col-span-2"><p className="text-sm text-gray-500">Address</p><p className="text-sm font-medium">{selectedVolunteer.address}</p></div>
+                <div className="col-span-2"><p className="text-sm text-gray-500">Areas of Interest</p><p className="text-sm font-medium">{selectedVolunteer.customerArea || 'Not specified'}</p></div>
                 <div className="col-span-2"><p className="text-sm text-gray-500">Motivation</p><p className="text-sm font-medium">{selectedVolunteer.motivation || 'Not provided'}</p></div>
+                {selectedVolunteer.feedbackSuggestion && (
+                  <div className="col-span-2"><p className="text-sm text-gray-500">Feedback/Suggestions</p><p className="text-sm font-medium">{selectedVolunteer.feedbackSuggestion}</p></div>
+                )}
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Table View with Unblock button */}
+      {/* Table View */}
       <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b">
-              <tr><th className="px-6 py-3 text-left text-xs font-medium text-gray-500">S.No</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Name</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Type</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Contact</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Skills</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Availability</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Applied On</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Status</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Actions</th></tr>
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">S.No</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Name</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Type</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Category</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Contact</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Qualification</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Applied On</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Actions</th>
+              </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {volunteers.length === 0 ? (
-                <tr><td colSpan="9" className="px-6 py-12 text-center text-gray-400"><Users className="w-16 h-16 mx-auto mb-4 opacity-50" /><p>No applications yet</p></td></tr>
+              {filteredVolunteers.length === 0 ? (
+                <tr>
+                  <td colSpan="9" className="px-6 py-12 text-center text-gray-400">
+                    <Users className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                    <p>No applications yet</p>
+                  </td>
+                </tr>
               ) : (
-                volunteers.map((volunteer, index) => (
+                filteredVolunteers.map((volunteer, index) => (
                   <tr key={volunteer.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 text-sm text-gray-500">{index + 1}</td>
-                    <td className="px-6 py-4 font-medium text-gray-900">{getVolunteerName(volunteer)}</td>
-                    <td className="px-6 py-4"><span className={`text-xs px-2 py-1 rounded-full ${getVolunteerType(volunteer) === 'Volunteer' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>{getVolunteerType(volunteer)}</span></td>
-                    <td className="px-6 py-4"><div className="space-y-1"><div className="flex items-center gap-1 text-sm text-gray-600"><Mail className="w-3 h-3" /><span className="truncate max-w-[150px]">{getVolunteerEmail(volunteer)}</span></div><div className="flex items-center gap-1 text-sm text-gray-600"><Phone className="w-3 h-3" /><span>{getVolunteerPhone(volunteer)}</span></div></div></td>
-                    <td className="px-6 py-4"><p className="text-sm text-gray-600 truncate max-w-[200px]">{getVolunteerSkills(volunteer)}</p></td>
-                    <td className="px-6 py-4"><span className="text-sm text-gray-600">{getVolunteerDuration(volunteer)}</span></td>
-                    <td className="px-6 py-4"><span className="text-sm text-gray-600">{getVolunteerDate(volunteer)}</span></td>
-                    <td className="px-6 py-4"><span className={`text-xs px-2 py-1 rounded-full ${volunteer.status === 'Accepted' ? 'bg-green-100 text-green-700' : volunteer.status === 'Rejected' ? 'bg-red-100 text-red-700' : volunteer.status === 'Blocked' ? 'bg-gray-100 text-gray-700' : 'bg-yellow-100 text-yellow-700'}`}>{volunteer.status}</span></td>
+                    <td className="px-6 py-4 font-medium text-gray-900">{volunteer.name}</td>
+                    <td className="px-6 py-4">
+                      <span className={`text-xs px-2 py-1 rounded-full ${volunteer.applicationType === 'Volunteer' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
+                        {volunteer.applicationType || 'Volunteer'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      {volunteer.Category ? (
+                        <span className="inline-flex px-2 py-1 text-xs rounded-full bg-green-100 text-green-700">
+                          {volunteer.Category.name}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-400">—</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1 text-sm text-gray-600">
+                          <Mail className="w-3 h-3" />
+                          <span className="truncate max-w-[150px]">{volunteer.email}</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-sm text-gray-600">
+                          <Phone className="w-3 h-3" />
+                          <span>{volunteer.phoneNumber}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <p className="text-sm text-gray-600 truncate max-w-[150px]">{volunteer.qualification || 'N/A'}</p>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(volunteer.status)}`}>
+                        {formatStatus(volunteer.status)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-sm text-gray-600">{new Date(volunteer.createdAt).toLocaleDateString()}</span>
+                    </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
-                        {volunteer.status === 'Pending' && (
+                        {volunteer.status === 'pending' && (
                           <>
-                            <button onClick={() => handleAccept(volunteer.id)} className="p-1 text-green-600 hover:bg-green-50 rounded" title="Accept"><Check className="w-4 h-4" /></button>
-                            <button onClick={() => handleReject(volunteer.id)} className="p-1 text-red-600 hover:bg-red-50 rounded" title="Reject"><X className="w-4 h-4" /></button>
+                            <button onClick={() => handleAccept(volunteer.id)} className="p-1 text-green-600 hover:bg-green-50 rounded" title="Accept">
+                              <Check className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => handleReject(volunteer.id)} className="p-1 text-red-600 hover:bg-red-50 rounded" title="Reject">
+                              <X className="w-4 h-4" />
+                            </button>
                           </>
                         )}
-                        {volunteer.status !== 'Blocked' ? (
-                          <button onClick={() => handleBlock(volunteer.id)} className="p-1 text-gray-600 hover:bg-gray-50 rounded" title="Block"><Ban className="w-4 h-4" /></button>
-                        ) : (
-                          <button onClick={() => handleUnblock(volunteer.id)} className="p-1 text-blue-600 hover:bg-blue-50 rounded" title="Unblock"><RotateCcw className="w-4 h-4" /></button>
+                        {volunteer.status !== 'inactive' && volunteer.status !== 'rejected' ? (
+                          <button onClick={() => handleBlock(volunteer.id)} className="p-1 text-gray-600 hover:bg-gray-50 rounded" title="Block">
+                            <Ban className="w-4 h-4" />
+                          </button>
+                        ) : volunteer.status === 'inactive' && (
+                          <button onClick={() => handleUnblock(volunteer.id)} className="p-1 text-blue-600 hover:bg-blue-50 rounded" title="Unblock">
+                            <RotateCcw className="w-4 h-4" />
+                          </button>
                         )}
-                        <button onClick={() => handleViewVolunteer(volunteer)} className="p-1 text-blue-600 hover:bg-blue-50 rounded" title="View"><Eye className="w-4 h-4" /></button>
-                        <button onClick={() => handleEditVolunteer(volunteer)} className="p-1 text-indigo-600 hover:bg-indigo-50 rounded" title="Edit"><Edit className="w-4 h-4" /></button>
-                        <button onClick={() => contactVolunteer(volunteer)} className="p-1 text-gray-600 hover:bg-gray-50 rounded" title="Email"><Mail className="w-4 h-4" /></button>
+                        <button onClick={() => handleViewVolunteer(volunteer)} className="p-1 text-blue-600 hover:bg-blue-50 rounded" title="View">
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => handleEditVolunteer(volunteer)} className="p-1 text-indigo-600 hover:bg-indigo-50 rounded" title="Edit">
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => handleDelete(volunteer.id)} className="p-1 text-red-600 hover:bg-red-50 rounded" title="Delete">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => contactVolunteer(volunteer)} className="p-1 text-gray-600 hover:bg-gray-50 rounded" title="Email">
+                          <Mail className="w-4 h-4" />
+                        </button>
                       </div>
                     </td>
                   </tr>

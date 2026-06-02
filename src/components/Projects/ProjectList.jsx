@@ -1,13 +1,52 @@
-import React from 'react';
+// ProjectList.jsx
+import React, { useState, useEffect } from 'react';
 import { Edit, Trash2, Eye } from 'lucide-react';
+import {api} from '../../services/ApiService';
 
 const statusColors = {
-  Active: 'bg-green-100 text-green-700',
-  Completed: 'bg-blue-100 text-blue-700',
-  Upcoming: 'bg-yellow-100 text-yellow-700'
+  active: 'bg-green-100 text-green-700',
+  completed: 'bg-blue-100 text-blue-700',
+  pending: 'bg-yellow-100 text-yellow-700'
 };
 
-export default function ProjectList({ projects, onEdit, onDelete, onView, onStatusChange, categories }) {
+export default function ProjectList({ projects, onEdit, onDelete, onView, onStatusChange, categories, setProjects }) {
+  const [loading, setLoading] = useState(false);
+  const clientToken = localStorage.getItem('token');
+  const handleStatusChange = async (id, status) => {
+    try {
+      const formData = new FormData();
+      formData.append('status', status);
+      
+      const response = await api.put(`/projects/${id}`, formData,{
+        headers: { 'Content-Type': 'multipart/form-data' },
+        Authorization: `Bearer ${clientToken}`,
+      });
+      if (response.success) {
+        onStatusChange(id, status);
+      }
+    } catch (error) {
+      console.error('Error updating status:', error);
+      alert('Error updating project status');
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (window.confirm('Are you sure you want to delete this project?')) {
+      try {
+        const response = await api.delete(`/projects/${id}`,{
+          headers: { 'Content-Type': 'multipart/form-data' },
+          Authorization: `Bearer ${clientToken}`,
+        });
+        if (response.success) {
+          onDelete(id);
+        }
+      } catch (error) {
+        console.error('Error deleting project:', error);
+        alert('Error deleting project');
+      }
+    }
+  };
+
   return (
     <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
       <div className="overflow-x-auto">
@@ -15,7 +54,7 @@ export default function ProjectList({ projects, onEdit, onDelete, onView, onStat
           <thead className="bg-gray-50 border-b">
             <tr>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Image</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Title</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Name</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Category</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">State/District</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Budget (₹)</th>
@@ -33,31 +72,33 @@ export default function ProjectList({ projects, onEdit, onDelete, onView, onStat
               projects.map(project => (
                 <tr key={project.id} className="border-b hover:bg-gray-50">
                   <td className="px-4 py-3">
-                    {project.image ? (
-                      <img src={project.image} alt={project.title} className="w-10 h-10 object-cover rounded-md" />
+                    {project.projectImage ? (
+                      <img src={`http://localhost:3000${project.projectImage}`} alt={project.name} className="w-10 h-10 object-cover rounded-md" />
                     ) : (
                       <div className="w-10 h-10 bg-gray-100 rounded-md flex items-center justify-center text-gray-400 text-xs">No img</div>
                     )}
                   </td>
-                  <td className="px-4 py-3 font-medium">{project.title}</td>
+                  <td className="px-4 py-3 font-medium">{project.name}</td>
                   <td className="px-4 py-3">
                     <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
-                      {project.category}
+                      {project.Category?.name || 'N/A'}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-gray-600">
                     {project.district ? `${project.district}, ${project.state}` : project.state || '—'}
                   </td>
                   <td className="px-4 py-3 font-semibold">
-                    ₹{project.budgetRequired?.toLocaleString()}
+                    ₹{parseFloat(project.budgetRequired).toLocaleString()}
                   </td>
                   <td className="px-4 py-3">
                     <select 
                       value={project.status} 
-                      onChange={(e) => onStatusChange(project.id, e.target.value)} 
+                      onChange={(e) => handleStatusChange(project.id, e.target.value)} 
                       className={`text-xs px-2 py-1 rounded-full border-0 ${statusColors[project.status]} focus:outline-none focus:ring-2 focus:ring-blue-500`}
                     >
-                      {Object.keys(statusColors).map(s => <option key={s}>{s}</option>)}
+                      <option value="pending">Pending</option>
+                      <option value="active">Active</option>
+                      <option value="completed">Completed</option>
                     </select>
                   </td>
                   <td className="px-4 py-3 text-gray-500">
@@ -71,7 +112,7 @@ export default function ProjectList({ projects, onEdit, onDelete, onView, onStat
                       <button onClick={() => onEdit(project)} className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Edit">
                         <Edit className="w-4 h-4" />
                       </button>
-                      <button onClick={() => onDelete(project.id)} className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors" title="Delete">
+                      <button onClick={() => handleDelete(project.id)} className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors" title="Delete">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>

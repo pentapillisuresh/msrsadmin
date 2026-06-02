@@ -1,15 +1,16 @@
-// src/components/KnowledgeHub/KnowledgeCategoryManager.jsx
+// src/components/Volunteers/VolunteerCategoryManager.jsx
 import React, { useState } from 'react';
 import { Plus, Edit2, Trash2, Check, X } from 'lucide-react';
+import { api } from '../../services/ApiService';
 
-export default function KnowledgeCategoryManager({ categories, onAddCategory, onDeleteCategory, onUpdateCategory }) {
+export default function VolunteerCategoryManager({ categories, onAddCategory, onDeleteCategory, onUpdateCategory }) {
   const [newCategory, setNewCategory] = useState('');
   const [editingCategory, setEditingCategory] = useState(null);
   const [editValue, setEditValue] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    e.preventDefault(); 
     if (newCategory.trim()) {
       setLoading(true);
       await onAddCategory(newCategory.trim());
@@ -53,7 +54,7 @@ export default function KnowledgeCategoryManager({ categories, onAddCategory, on
           type="text"
           value={newCategory}
           onChange={(e) => setNewCategory(e.target.value)}
-          placeholder="New category name"
+          placeholder="New volunteer category name"
           className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
           disabled={loading}
         />
@@ -129,7 +130,7 @@ export default function KnowledgeCategoryManager({ categories, onAddCategory, on
       </div>
 
       <div className="text-xs text-gray-500 mt-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
-        <strong className="font-medium">Note:</strong> Categories used by existing articles cannot be deleted. Please reassign or delete those articles first.
+        <strong className="font-medium">Note:</strong> Categories used by existing volunteers cannot be deleted. Please reassign or delete those volunteers first.
       </div>
     </div>
   );

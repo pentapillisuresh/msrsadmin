@@ -1,94 +1,238 @@
-import React, { useState } from 'react';
-import { useLocalStorage } from '../hooks/useLocalStorage';
+// src/pages/Events.jsx
+import React, { useState, useEffect } from 'react';
+import {api} from '../services/ApiService';
 import EventForm from '../components/Events/EventForm';
 import EventCategoryManager from '../components/Events/EventCategoryManager';
 import { Plus, X, Calendar, MapPin, Clock, Image as ImageIcon, Upload, Edit, Trash2, Eye, Filter, FolderPlus } from 'lucide-react';
 
 export default function Events() {
-  const [events, setEvents] = useLocalStorage('c3r_events', []);
-  const [eventCategories, setEventCategories] = useLocalStorage('c3r_event_categories', [
-    'Workshop',
-    'Seminar',
-    'Webinar',
-    'Conference',
-    'Fundraiser',
-    'Awareness Campaign',
-    'Training Program',
-    'Other'
-  ]);
+  const [events, setEvents] = useState([]);
+  const [eventCategories, setEventCategories] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [viewModal, setViewModal] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState(false);
 
-  // Category management handlers
-  const handleAddCategory = (newCategory) => {
-    if (!eventCategories.includes(newCategory)) {
-      setEventCategories([...eventCategories, newCategory]);
+  // Fetch events from API
+  const fetchEvents = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get('/events/');
+      if (response.success) {
+        setEvents(response.data.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching events:', error);
+      alert('Error fetching events. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleDeleteCategory = (categoryToDelete) => {
-    const eventsUsingCategory = events.filter(e => e.category === categoryToDelete);
+  // Fetch categories from API (categoryRelated = 'event')
+  const fetchCategories = async () => {
+    try {
+      const response = await api.get('/categories/?categoryRelated=event');
+      if (response.success) {
+        setEventCategories(response.data || []);
+      }
+      console.log("category:::",response.data)
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchEvents();
+    fetchCategories();
+  }, []);
+
+  // Category management handlers with API integration
+  const handleAddCategory = async (newCategoryName) => {
+    try {
+      const response = await api.post('/categories/', {
+        name: newCategoryName,
+        categoryRelated: 'event',
+        description: `Events related to ${newCategoryName}`,
+        status: 'active'
+      });
+      
+      if (response.success) {
+        setEventCategories([...eventCategories, response.data.data]);
+        alert('Category added successfully!');
+      }
+    } catch (error) {
+      console.error('Error adding category:', error);
+      alert('Error adding category. Please try again.');
+    }
+  };
+
+  const handleDeleteCategory = async (categoryId) => {
+    const eventsUsingCategory = events.filter(e => e.categoryId === categoryId);
     if (eventsUsingCategory.length > 0) {
-      alert(`Cannot delete category "${categoryToDelete}" because it is used by ${eventsUsingCategory.length} event(s). Please reassign or delete those events first.`);
+      alert(`Cannot delete category because it is used by ${eventsUsingCategory.length} event(s). Please reassign or delete those events first.`);
       return false;
     }
-    setEventCategories(eventCategories.filter(c => c !== categoryToDelete));
-    return true;
+    
+    try {
+      const response = await api.delete(`/categories/${categoryId}`);
+      if (response.success) {
+        setEventCategories(eventCategories.filter(c => c.id !== categoryId));
+        alert('Category deleted successfully!');
+      }
+    } catch (error) {
+      console.error('Error deleting category:', error);
+      alert('Error deleting category. Please try again.');
+    }
   };
 
-  const handleUpdateCategory = (oldCategory, newCategory) => {
-    if (oldCategory === newCategory) return;
-    if (eventCategories.includes(newCategory)) {
-      alert(`Category "${newCategory}" already exists!`);
+  const handleUpdateCategory = async (categoryId, newCategoryName) => {
+    const category = eventCategories.find(c => c.id === categoryId);
+    if (category.name === newCategoryName) return;
+    
+    if (eventCategories.some(c => c.name === newCategoryName)) {
+      alert(`Category "${newCategoryName}" already exists!`);
       return false;
     }
-    // Update all events using the old category
-    setEvents(events.map(e => 
-      e.category === oldCategory ? { ...e, category: newCategory } : e
-    ));
-    setEventCategories(eventCategories.map(c => c === oldCategory ? newCategory : c));
-    return true;
-  };
-
-  const handleSave = (eventData) => {
-    if (editingEvent) {
-      setEvents(events.map(e => e.id === editingEvent.id ? { ...eventData, id: e.id } : e));
-    } else {
-      setEvents([...events, { ...eventData, id: Date.now(), createdAt: new Date().toISOString() }]);
+    
+    try {
+      const response = await api.put(`/categories/${categoryId}`, {
+        name: newCategoryName,
+        categoryRelated: 'event',
+        description: `Events related to ${newCategoryName}`,
+        status: 'active'
+      });
+      
+      if (response.success) {
+        setEventCategories(eventCategories.map(c => 
+          c.id === categoryId ? response.data.data : c
+        ));
+        // Update events with the new category name
+        setEvents(events.map(e => 
+          e.categoryId === categoryId ? { ...e, Category: response.data.data } : e
+        ));
+        alert('Category updated successfully!');
+      }
+    } catch (error) {
+      console.error('Error updating category:', error);
+      alert('Error updating category. Please try again.');
     }
-    setShowForm(false);
-    setEditingEvent(null);
   };
 
-  const handleDelete = (id) => {
-    if (window.confirm('Delete this event?')) setEvents(events.filter(e => e.id !== id));
+  const handleSave = async (eventData) => {
+    setUpdating(true);
+    try {
+      const formData = new FormData();
+      formData.append('eventName', eventData.title);
+      formData.append('description', eventData.description);
+      formData.append('date', eventData.date);
+      formData.append('time', eventData.time);
+      formData.append('location', eventData.location);
+      formData.append('categoryId', eventData.categoryId);
+      formData.append('status', eventData.status.toLowerCase());
+      
+      if (eventData.imageFile) {
+        formData.append('image', eventData.imageFile);
+      }
+
+      let response;
+      if (editingEvent) {
+        // Update existing event
+        response = await api.put(`/events/${editingEvent.id}`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+      } else {
+        // Create new event
+        response = await api.post('/events/', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+      }
+      
+      if (response.success) {
+        fetchEvents(); // Refresh the list
+        setShowForm(false);
+        setEditingEvent(null);
+      }
+    } catch (error) {
+      console.error('Error saving event:', error);
+      alert('Error saving event. Please try again.');
+    } finally {
+      setUpdating(false);
+    }
   };
 
-  const handleStatusToggle = (id, status) => {
-    setEvents(events.map(e => e.id === id ? { ...e, status } : e));
+  const handleDelete = async (id) => {
+    if (window.confirm('Are you sure you want to delete this event?')) {
+      try {
+        const response = await api.delete(`/events/${id}`);
+        if (response.success) {
+          setEvents(events.filter(e => e.id !== id));
+        }
+      } catch (error) {
+        console.error('Error deleting event:', error);
+        alert('Error deleting event. Please try again.');
+      }
+    }
+  };
+
+  const handleStatusToggle = async (id, newStatus) => {
+    try {
+      const response = await api.put(`/events/${id}`, {
+        status: newStatus.toLowerCase()
+      });
+      
+      if (response.success) {
+        setEvents(events.map(e => e.id === id ? { ...e, status: newStatus.toLowerCase() } : e));
+      }
+    } catch (error) {
+      console.error('Error updating status:', error);
+      alert('Error updating event status. Please try again.');
+    }
+  };
+
+  const handleViewEvent = async (event) => {
+    try {
+      const response = await api.get(`/events/${event.id}`);
+      console.log("event item::",response)
+      if (response.success) {
+        setSelectedEvent(response.data);
+        setViewModal(true);
+      }
+    } catch (error) {
+      console.error('Error fetching event details:', error);
+      alert('Error loading event details. Please try again.');
+    }
   };
 
   const getStatusColor = (status) => {
     switch(status) {
-      case 'Upcoming': return 'bg-yellow-100 text-yellow-700';
-      case 'Completed': return 'bg-green-100 text-green-700';
-      case 'Cancelled': return 'bg-red-100 text-red-700';
+      case 'upcoming': return 'bg-yellow-100 text-yellow-700';
+      case 'ongoing': return 'bg-blue-100 text-blue-700';
+      case 'completed': return 'bg-green-100 text-green-700';
+      case 'cancelled': return 'bg-red-100 text-red-700';
       default: return 'bg-gray-100 text-gray-700';
     }
   };
 
-  const handleViewEvent = (event) => {
-    setSelectedEvent(event);
-    setViewModal(true);
+  const formatStatus = (status) => {
+    return status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Upcoming';
   };
 
   const filteredEvents = categoryFilter === 'all' 
     ? events 
-    : events.filter(event => event.category === categoryFilter);
+    : events.filter(event => event.categoryId === categoryFilter);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="text-gray-500">Loading events...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -109,7 +253,7 @@ export default function Events() {
             >
               <option value="all">All Categories</option>
               {eventCategories.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
+                <option key={cat.id} value={cat.id}>{cat.name}</option>
               ))}
             </select>
             <Filter className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
@@ -161,6 +305,7 @@ export default function Events() {
                 onSave={handleSave} 
                 onCancel={() => setShowForm(false)} 
                 categories={eventCategories}
+                updating={updating}
               />
             </div>
           </div>
@@ -180,19 +325,19 @@ export default function Events() {
             <div className="p-6">
               {selectedEvent.image && (
                 <div className="mb-6">
-                  <img src={selectedEvent.image} alt={selectedEvent.title} className="w-full h-64 object-cover rounded-lg" />
+                  <img src={`http://localhost:3000${selectedEvent.image}`} alt={selectedEvent.eventName} className="w-full h-64 object-cover rounded-lg" />
                 </div>
               )}
               <div className="space-y-4">
                 <div>
-                  <h4 className="text-2xl font-bold text-gray-900">{selectedEvent.title}</h4>
+                  <h4 className="text-2xl font-bold text-gray-900">{selectedEvent.eventName}</h4>
                   <div className="mt-2 flex gap-2 flex-wrap">
                     <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(selectedEvent.status)}`}>
-                      {selectedEvent.status}
+                      {formatStatus(selectedEvent.status)}
                     </span>
-                    {selectedEvent.category && (
+                    {selectedEvent.Category && (
                       <span className="text-xs px-2 py-1 rounded-full bg-purple-100 text-purple-700">
-                        {selectedEvent.category}
+                        {selectedEvent.Category.name}
                       </span>
                     )}
                   </div>
@@ -254,15 +399,15 @@ export default function Events() {
                     <Upload className="w-16 h-16 mx-auto mb-4 opacity-50" />
                     <p className="text-lg">No events found</p>
                     <p className="text-sm">Click "Add Event" to create one</p>
-                   </td>
-                 </tr>
+                    </td>
+                  </tr>
               ) : (
                 filteredEvents.map((event) => (
                   <tr key={event.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
                       {event.image ? (
                         <div className="w-12 h-12 rounded-lg overflow-hidden">
-                          <img src={event.image} alt={event.title} className="w-full h-full object-cover" />
+                          <img src={`http://localhost:3000${event.image}`} alt={event.eventName} className="w-full h-full object-cover" />
                         </div>
                       ) : (
                         <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
@@ -272,14 +417,14 @@ export default function Events() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="max-w-xs">
-                        <p className="font-medium text-gray-900">{event.title}</p>
+                        <p className="font-medium text-gray-900">{event.eventName}</p>
                         <p className="text-sm text-gray-500 line-clamp-1">{event.description || 'No description'}</p>
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      {event.category ? (
+                      {event.Category ? (
                         <span className="inline-flex px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-700">
-                          {event.category}
+                          {event.Category.name}
                         </span>
                       ) : (
                         <span className="text-xs text-gray-400">—</span>
@@ -310,20 +455,22 @@ export default function Events() {
                       )}
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(event.status)}`}>
-                        {event.status}
-                      </span>
+                      <select
+                        value={event.status}
+                        onChange={(e) => handleStatusToggle(event.id, e.target.value)}
+                        className={`text-xs px-2 py-1 rounded-full border-0 ${getStatusColor(event.status)} focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                      >
+                        <option value="upcoming">Upcoming</option>
+                        <option value="ongoing">Ongoing</option>
+                        <option value="completed">Completed</option>
+                        <option value="cancelled">Cancelled</option>
+                      </select>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <button onClick={() => handleViewEvent(event)} className="text-green-600 hover:text-green-800" title="View">
                           <Eye className="w-4 h-4" />
                         </button>
-                        {event.status !== 'Cancelled' && (
-                          <button onClick={() => handleStatusToggle(event.id, event.status === 'Upcoming' ? 'Completed' : 'Upcoming')} className="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
-                            {event.status === 'Upcoming' ? 'Complete' : 'Upcoming'}
-                          </button>
-                        )}
                         <button onClick={() => { setEditingEvent(event); setShowForm(true); }} className="text-blue-600 hover:text-blue-800" title="Edit">
                           <Edit className="w-4 h-4" />
                         </button>

@@ -1,30 +1,33 @@
+// ProjectView.jsx
 import React from 'react';
 
 export default function ProjectView({ project }) {
+  const points = project.points ? JSON.parse(project.points) : [];
+  
   return (
     <div className="space-y-4">
-      {project.image && (
+      {project.projectImage && (
         <div className="flex justify-center">
-          <img src={project.image} alt={project.title} className="max-w-full max-h-64 rounded-lg object-cover border" />
+          <img src={`http://localhost:3000${project.projectImage}`} alt={project.name} className="max-w-full max-h-64 rounded-lg object-cover border" />
         </div>
       )}
 
       <div className="grid grid-cols-2 gap-4">
         <div className="col-span-2">
-          <h3 className="text-lg font-semibold text-gray-900">{project.title}</h3>
+          <h3 className="text-lg font-semibold text-gray-900">{project.name}</h3>
         </div>
 
         <div>
           <label className="text-xs font-medium text-gray-500">Category</label>
-          <p className="text-sm text-gray-800">{project.category}</p>
+          <p className="text-sm text-gray-800">{project.Category?.name || 'N/A'}</p>
         </div>
 
         <div>
           <label className="text-xs font-medium text-gray-500">Status</label>
           <p className="text-sm">
             <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
-              project.status === 'Active' ? 'bg-green-100 text-green-700' :
-              project.status === 'Completed' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'
+              project.status === 'active' ? 'bg-green-100 text-green-700' :
+              project.status === 'completed' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'
             }`}>
               {project.status}
             </span>
@@ -38,7 +41,17 @@ export default function ProjectView({ project }) {
 
         <div>
           <label className="text-xs font-medium text-gray-500">Budget Required</label>
-          <p className="text-sm text-gray-800 font-semibold">₹{project.budgetRequired?.toLocaleString()}</p>
+          <p className="text-sm text-gray-800 font-semibold">₹{parseFloat(project.budgetRequired).toLocaleString()}</p>
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-gray-500">Application Type</label>
+          <p className="text-sm text-gray-800">{project.applicationType || '—'}</p>
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-gray-500">Mode</label>
+          <p className="text-sm text-gray-800">{project.mode || '—'}</p>
         </div>
 
         <div className="col-span-2">
@@ -68,9 +81,9 @@ export default function ProjectView({ project }) {
 
         <div className="col-span-2">
           <label className="text-xs font-medium text-gray-500">Impact Metrics</label>
-          {project.impactMetrics && project.impactMetrics.length > 0 ? (
+          {points && points.length > 0 ? (
             <ul className="list-disc list-inside mt-1 space-y-1">
-              {project.impactMetrics.map((metric, idx) => (
+              {points.map((metric, idx) => (
                 <li key={idx} className="text-sm text-gray-800">{metric}</li>
               ))}
             </ul>

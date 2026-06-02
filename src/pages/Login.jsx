@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Lock, Mail, Building2, ArrowRight } from 'lucide-react';
+import { Lock, Mail, Building2, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { api } from '../services/ApiService';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
 
@@ -15,15 +17,67 @@ export default function Login() {
     e.preventDefault();
     setError('');
     setIsLoading(true);
+
+
+    try {
+      setIsLoading(true);
+      setError('');
     
-    setTimeout(() => {
-      if (login(email, password)) {
+      // API call using axios service
+      const data = await api.post('auth/login', {
+        email,
+        password
+      });
+    console.log("response::",data)
+      if (data.success) {
+
+        // Optional session backup
+        sessionStorage.setItem(
+          'user',
+          JSON.stringify(data.data.user)
+        );
+    
+        sessionStorage.setItem(
+          'accessToken',
+          data.data.accessToken
+        );
+    
+        sessionStorage.setItem(
+          'refreshToken',
+          data.data.refreshToken
+        );
+    console.log("user:::",data.data.user)
+        // Context login
+        if (login) {
+          login(
+            data.data.user,
+            data.data.accessToken,
+            data.data.refreshToken
+          );
+        }
+    
+        // Navigate
         navigate('/dashboard');
+    
       } else {
-        setError('Invalid email or password');
-        setIsLoading(false);
+        setError(data.message || 'Invalid email or password');
       }
-    }, 500);
+    
+    } catch (err) {
+      console.error('Login Error:', err);
+    
+      setError(
+        err.response?.data?.message ||
+        'Network error. Please try again.'
+      );
+    
+    } finally {
+      setIsLoading(false);
+    }  };
+
+  // Toggle password visibility
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
   };
 
   return (
@@ -74,7 +128,7 @@ export default function Login() {
               <div className="relative group">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-indigo-600 transition-colors" />
                 <input
-                  type="email"
+                  type="text"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none"
@@ -91,13 +145,24 @@ export default function Login() {
               <div className="relative group">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-indigo-600 transition-colors" />
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none"
+                  className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none"
                   placeholder="••••••••"
                   required
                 />
+                <button
+                  type="button"
+                  onClick={togglePasswordVisibility}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-5 h-5" />
+                  ) : (
+                    <Eye className="w-5 h-5" />
+                  )}
+                </button>
               </div>
             </div>
 
@@ -139,10 +204,10 @@ export default function Login() {
                 <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Demo Credentials</p>
                 <div className="space-y-1 text-sm">
                   <p className="text-gray-700">
-                    <span className="font-medium">Email:</span> admin@msrs.org
+                    <span className="font-medium">Email:</span> admin@gmail.com
                   </p>
                   <p className="text-gray-700">
-                    <span className="font-medium">Password:</span> admin123
+                    <span className="font-medium">Password:</span> Admin@123
                   </p>
                 </div>
               </div>

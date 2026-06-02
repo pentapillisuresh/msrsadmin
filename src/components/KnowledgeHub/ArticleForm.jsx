@@ -1,14 +1,15 @@
+// src/components/KnowledgeHub/ArticleForm.jsx
 import React, { useState } from 'react';
 
-export default function ArticleForm({ initialData, onSave, onCancel, categories = [] }) {
+export default function ArticleForm({ initialData, onSave, onCancel, categories = [], submitting = false }) {
   const [formData, setFormData] = useState({
-    title: initialData?.title || '',
-    category: initialData?.category || (categories[0] || ''),
-    content: initialData?.content || '',
+    title: initialData?.name || '',
+    categoryId: initialData?.categoryId || (categories[0]?.id || ''),
+    content: initialData?.description || '',
     file: null,
-    fileUrl: initialData?.fileUrl || ''
+    fileUrl: initialData?.file || ''
   });
-  const [filePreview, setFilePreview] = useState(initialData?.fileUrl || '');
+  const [filePreview, setFilePreview] = useState(initialData?.file ? `http://localhost:3000${initialData.file}` : '');
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -17,22 +18,18 @@ export default function ArticleForm({ initialData, onSave, onCancel, categories 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFilePreview(reader.result);
-        setFormData({ ...formData, file: file, fileUrl: reader.result });
-      };
-      reader.readAsDataURL(file);
+      setFormData({ ...formData, file: file, fileUrl: URL.createObjectURL(file) });
+      setFilePreview(URL.createObjectURL(file));
     }
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const saveData = {
-      ...formData,
-      fileUrl: formData.fileUrl || filePreview
-    };
-    onSave(saveData);
+    if (!formData.title || !formData.content || !formData.categoryId) {
+      alert('Please fill all required fields');
+      return;
+    }
+    onSave(formData);
   };
 
   return (
@@ -40,17 +37,23 @@ export default function ArticleForm({ initialData, onSave, onCancel, categories 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
         <select
-          name="category"
-          value={formData.category}
+          name="categoryId"
+          value={formData.categoryId}
           onChange={handleChange}
-          className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
           required
         >
-          {categories.length === 0 && <option value="">Loading categories...</option>}
+          <option value="">Select Category</option>
+          {categories.length === 0 && <option value="" disabled>No categories available. Please add categories first.</option>}
           {categories.map(cat => (
-            <option key={cat} value={cat}>{cat}</option>
+            <option key={cat.id} value={cat.id}>{cat.name}</option>
           ))}
         </select>
+        {categories.length === 0 && (
+          <p className="text-xs text-amber-600 mt-1">
+            No categories available. Click "Manage Categories" to add categories.
+          </p>
+        )}
       </div>
 
       <div>
@@ -59,19 +62,19 @@ export default function ArticleForm({ initialData, onSave, onCancel, categories 
           name="title" 
           value={formData.title} 
           onChange={handleChange} 
-          className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" 
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" 
           required 
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Content *</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Description *</label>
         <textarea 
           name="content" 
           rows="5" 
           value={formData.content} 
           onChange={handleChange} 
-          className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500" 
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" 
           required 
         />
       </div>
@@ -81,21 +84,26 @@ export default function ArticleForm({ initialData, onSave, onCancel, categories 
         <input 
           type="file" 
           onChange={handleFileChange} 
-          className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" 
+          accept=".pdf,.doc,.docx,.txt,.ppt,.pptx"
+          className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer" 
         />
-        {filePreview && !filePreview.startsWith('data:') && (
-          <div className="mt-2">
-            <a href={filePreview} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:underline">Current file</a>
-          </div>
+        {filePreview && filePreview !== initialData?.file && (
+          <div className="mt-2 text-xs text-gray-500">File selected: {formData.file?.name}</div>
         )}
-        {filePreview && filePreview.startsWith('data:') && (
-          <div className="mt-2 text-xs text-gray-500">File loaded (will be saved as base64)</div>
+        {initialData?.file && !formData.file && (
+          <div className="mt-2">
+            <a href={`http://localhost:3000${initialData.file}`} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:underline">Current file</a>
+          </div>
         )}
       </div>
 
       <div className="flex justify-end gap-3 pt-4">
-        <button type="button" onClick={onCancel} className="px-4 py-2 border rounded-lg hover:bg-gray-50 text-sm">Cancel</button>
-        <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm">Save</button>
+        <button type="button" onClick={onCancel} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm">
+          Cancel
+        </button>
+        <button type="submit" disabled={submitting} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+          {submitting ? 'Saving...' : 'Save'}
+        </button>
       </div>
     </form>
   );
