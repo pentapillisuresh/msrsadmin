@@ -1,255 +1,501 @@
-import React, { useState } from 'react';
-import { useLocalStorage } from '../hooks/useLocalStorage';
-import { Plus, X, Image as ImageIcon, Video, Trash2, Upload, FileVideo, Camera, Filter, FolderPlus, Edit2, Check } from 'lucide-react';
-
-// Predefined default categories
-const DEFAULT_CATEGORIES = [
-  'Events',
-  'Projects',
-  'CSR Activities',
-  'Volunteering',
-  'Donations',
-  'Impact Stories'
-];
+// components/Media.jsx
+import React, { useState, useEffect } from 'react';
+import { 
+  Plus, X, Trash2, Upload, FileVideo, Camera, Filter, 
+  Edit2, Loader, Save, Image, Video, Grid, LayoutList,
+  Play, Pause, Maximize2, Download, ChevronLeft, ChevronRight,
+  FolderOpen, Calendar, Eye, Heart, Share2, Info
+} from 'lucide-react';
+import {api} from '../services/ApiService';
 
 export default function Media() {
-  const [media, setMedia] = useLocalStorage('c3r_media', []);
-  const [categories, setCategories] = useLocalStorage('c3r_media_categories', DEFAULT_CATEGORIES);
+  const [media, setMedia] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [showUpload, setShowUpload] = useState(false);
-  const [showCategoryManager, setShowCategoryManager] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showLightbox, setShowLightbox] = useState(false);
+  const [selectedMedia, setSelectedMedia] = useState(null);
+  const [editingMedia, setEditingMedia] = useState(null);
   const [uploadType, setUploadType] = useState('image');
   const [uploadTitle, setUploadTitle] = useState('');
-  const [uploadCategory, setUploadCategory] = useState(categories[0] || '');
-  const [newCategoryInline, setNewCategoryInline] = useState('');
+  const [uploadCategoryId, setUploadCategoryId] = useState('');
+  const [uploadDescription, setUploadDescription] = useState('');
   const [uploadFile, setUploadFile] = useState(null);
   const [uploadPreview, setUploadPreview] = useState('');
-  const [filterCategory, setFilterCategory] = useState('all');
-  
-  // Category manager state
-  const [editingCategory, setEditingCategory] = useState(null);
-  const [editValue, setEditValue] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [viewMode, setViewMode] = useState('grid'); // grid, list
+  const [mediaTypeFilter, setMediaTypeFilter] = useState('all'); // all, image, video
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
 
-  // --- Category CRUD functions ---
-  const handleAddCategory = (newCat) => {
-    if (!newCat.trim()) return;
-    if (categories.includes(newCat.trim())) {
-      alert('Category already exists');
+  // Fetch media and categories
+  useEffect(() => {
+    fetchMedia();
+    fetchCategories();
+  }, [mediaTypeFilter, statusFilter, selectedCategory]);
+
+  const fetchMedia = async () => {
+    setLoading(true);
+    try {
+      const params = {};
+      if (selectedCategory !== 'all') params.categoryId = selectedCategory;
+      if (statusFilter !== 'all') params.status = statusFilter;
+      if (mediaTypeFilter !== 'all') params.mediaType = mediaTypeFilter;
+      
+      const response = await api.get('/media', { params });
+      
+      let mediaData = [];
+      if (response && response.data) {
+        if (response.data.data && Array.isArray(response.data.data)) {
+          mediaData = response.data.data;
+        } else if (Array.isArray(response.data)) {
+          mediaData = response.data;
+        } else if (Array.isArray(response)) {
+          mediaData = response;
+        }
+      } else if (Array.isArray(response)) {
+        mediaData = response;
+      }
+      
+      setMedia(mediaData);
+    } catch (error) {
+      console.error('Error fetching media:', error);
+      setMedia([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const response = await api.get('/categories');
+      let categoriesData = [];
+      if (response && response.data && Array.isArray(response.data)) {
+        categoriesData = response.data;
+      } else if (response && Array.isArray(response)) {
+        categoriesData = response;
+      }
+      setCategories(categoriesData);
+      if (categoriesData.length > 0 && !uploadCategoryId) {
+        setUploadCategoryId(categoriesData[0].id);
+      }
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      setCategories([]);
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!uploadFile || !uploadTitle || !uploadCategoryId) {
+      alert('Please fill all required fields');
       return;
     }
-    setCategories([...categories, newCat.trim()]);
-  };
 
-  const handleUpdateCategory = (oldCat, newCat) => {
-    if (oldCat === newCat) return;
-    if (categories.includes(newCat)) {
-      alert('Category already exists');
-      return false;
-    }
-    // Update all media items using this category
-    setMedia(media.map(item => 
-      item.category === oldCat ? { ...item, category: newCat } : item
-    ));
-    setCategories(categories.map(c => c === oldCat ? newCat : c));
-    // If filter was on old category, update it
-    if (filterCategory === oldCat) setFilterCategory(newCat);
-    if (uploadCategory === oldCat) setUploadCategory(newCat);
-    return true;
-  };
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('file', uploadFile);
+    formData.append('name', uploadTitle);
+    formData.append('mediaType', uploadType);
+    formData.append('categoryId', uploadCategoryId);
+    if (uploadDescription) formData.append('description', uploadDescription);
 
-  const handleDeleteCategory = (catToDelete) => {
-    const usedBy = media.filter(item => item.category === catToDelete).length;
-    if (usedBy > 0) {
-      alert(`Cannot delete "${catToDelete}" because it is used by ${usedBy} media item(s).`);
-      return false;
-    }
-    setCategories(categories.filter(c => c !== catToDelete));
-    if (filterCategory === catToDelete) setFilterCategory('all');
-    if (uploadCategory === catToDelete) setUploadCategory(categories[0] || '');
-    return true;
-  };
-
-  // --- Upload functions ---
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (uploadType === 'image' && !file.type.startsWith('image/')) {
-        alert('Please upload an image file');
-        return;
-      }
-      if (uploadType === 'video' && !file.type.startsWith('video/')) {
-        alert('Please upload a video file');
-        return;
-      }
-      const maxSize = uploadType === 'image' ? 10 * 1024 * 1024 : 50 * 1024 * 1024;
-      if (file.size > maxSize) {
-        alert(`File size should be less than ${maxSize / (1024 * 1024)}MB`);
-        return;
-      }
-      setUploadFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => setUploadPreview(reader.result);
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleAddNewCategoryInline = () => {
-    if (newCategoryInline.trim() && !categories.includes(newCategoryInline.trim())) {
-      setCategories([...categories, newCategoryInline.trim()]);
-      setUploadCategory(newCategoryInline.trim());
-      setNewCategoryInline('');
-    } else if (newCategoryInline.trim() && categories.includes(newCategoryInline.trim())) {
-      alert('Category already exists');
-    }
-  };
-
-  const handleUpload = () => {
-    if (uploadPreview && uploadTitle && uploadCategory) {
-      const newMedia = {
-        id: Date.now(),
-        type: uploadType,
-        data: uploadPreview,
-        title: uploadTitle,
-        category: uploadCategory,
-        fileName: uploadFile?.name,
-        fileSize: uploadFile?.size,
-        createdAt: new Date().toISOString()
-      };
-      setMedia([...media, newMedia]);
-      setUploadFile(null);
-      setUploadPreview('');
-      setUploadTitle('');
-      setUploadCategory(categories[0]);
+    try {
+      await api.post('/media', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      await fetchMedia();
+      resetUploadForm();
       setShowUpload(false);
-    } else {
-      alert('Please fill all fields (title and category)');
+      alert('Media uploaded successfully!');
+    } catch (error) {
+      console.error('Upload error:', error);
+      alert(error.response?.data?.message || 'Failed to upload media');
+    } finally {
+      setUploading(false);
     }
   };
 
-  const handleDelete = (id) => {
-    if (window.confirm('Delete this media?')) 
-      setMedia(media.filter(m => m.id !== id));
+  const handleUpdate = async () => {
+    if (!uploadTitle || !uploadCategoryId) {
+      alert('Please fill all required fields');
+      return;
+    }
+
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('name', uploadTitle);
+    formData.append('mediaType', uploadType);
+    formData.append('categoryId', uploadCategoryId);
+    if (uploadDescription) formData.append('description', uploadDescription);
+    if (uploadFile) formData.append('file', uploadFile);
+
+    try {
+      await api.put(`/media/${editingMedia.id}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      await fetchMedia();
+      setShowEditModal(false);
+      resetUploadForm();
+      alert('Media updated successfully!');
+    } catch (error) {
+      console.error('Update error:', error);
+      alert(error.response?.data?.message || 'Failed to update media');
+    } finally {
+      setUploading(false);
+    }
   };
 
-  const filteredMedia = filterCategory === 'all' 
-    ? media 
-    : media.filter(m => m.category === filterCategory);
+  const handleDelete = async (id) => {
+    if (window.confirm('Delete this media? This action cannot be undone.')) {
+      try {
+        await api.delete(`/media/${id}`);
+        await fetchMedia();
+        alert('Media deleted successfully');
+      } catch (error) {
+        console.error('Delete error:', error);
+        alert(error.response?.data?.message || 'Failed to delete media');
+      }
+    }
+  };
+
+  const handleToggleStatus = async (id, currentStatus) => {
+    const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
+    try {
+      await api.put(`/media/${id}`, { status: newStatus });
+      await fetchMedia();
+    } catch (error) {
+      console.error('Status update error:', error);
+      alert('Failed to update media status');
+    }
+  };
+
+  const handleEdit = (mediaItem) => {
+    setEditingMedia(mediaItem);
+    setUploadTitle(mediaItem.name);
+    setUploadDescription(mediaItem.description || '');
+    setUploadCategoryId(mediaItem.categoryId);
+    setUploadType(mediaItem.mediaType);
+    setUploadFile(null);
+    setUploadPreview('');
+    setShowEditModal(true);
+  };
+
+  const openLightbox = (mediaItem) => {
+    setSelectedMedia(mediaItem);
+    setShowLightbox(true);
+  };
+
+  const closeLightbox = () => {
+    setSelectedMedia(null);
+    setShowLightbox(false);
+  };
+
+  const navigateLightbox = (direction) => {
+    const currentIndex = filteredMedia.findIndex(m => m.id === selectedMedia?.id);
+    const newIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
+    if (newIndex >= 0 && newIndex < filteredMedia.length) {
+      setSelectedMedia(filteredMedia[newIndex]);
+    }
+  };
+
+  const resetUploadForm = () => {
+    setUploadFile(null);
+    setUploadPreview('');
+    setUploadTitle('');
+    setUploadDescription('');
+    setUploadCategoryId(categories[0]?.id || '');
+    setEditingMedia(null);
+  };
+
+  const getFileUrl = (filePath) => {
+    if (!filePath) return '';
+    const cleanPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
+    return `http://localhost:3000/${cleanPath}`;
+  };
+
+  const getCategoryName = (categoryId) => {
+    const category = categories.find(c => c.id === categoryId);
+    return category ? category.name : 'Uncategorized';
+  };
+
+  // Filter and search media
+  const filteredMedia = Array.isArray(media) ? media.filter(item => {
+    if (mediaTypeFilter !== 'all' && item.mediaType !== mediaTypeFilter) return false;
+    if (selectedCategory !== 'all' && item.categoryId !== selectedCategory) return false;
+    if (statusFilter !== 'all' && item.status !== statusFilter) return false;
+    if (searchTerm && !item.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+    return true;
+  }) : [];
+
+  const images = filteredMedia.filter(m => m.mediaType === 'image');
+  const videos = filteredMedia.filter(m => m.mediaType === 'video');
+
+  // Stats
+  const stats = {
+    total: media.length,
+    images: media.filter(m => m.mediaType === 'image').length,
+    videos: media.filter(m => m.mediaType === 'video').length,
+    active: media.filter(m => m.status === 'active').length
+  };
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex justify-between items-center flex-wrap gap-3">
-        <h2 className="text-lg font-semibold">Media Management</h2>
-        <div className="flex gap-2">
-          <button 
-            onClick={() => setShowCategoryManager(true)} 
-            className="flex items-center gap-1 px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-          >
-            <FolderPlus className="w-4 h-4" /> Manage Categories
-          </button>
-          <div className="relative">
-            <select
-              value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value)}
-              className="pl-9 pr-4 py-2 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="all">All Categories</option>
-              {categories.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-            </select>
-            <Filter className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+    <div className="min-h-screen bg-gray-50">
+      {/* Hero Section */}
+      <div className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white">
+        <div className="max-w-7xl mx-auto px-4 py-8">
+          <h1 className="text-3xl font-bold mb-2">Media Gallery</h1>
+          <p className="text-purple-100">Manage and organize your images and videos</p>
+          
+          {/* Stats Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+            <div className="bg-white/10 backdrop-blur rounded-lg p-4">
+              <div className="text-2xl font-bold">{stats.total}</div>
+              <div className="text-sm text-purple-100">Total Media</div>
+            </div>
+            <div className="bg-white/10 backdrop-blur rounded-lg p-4">
+              <div className="text-2xl font-bold">{stats.images}</div>
+              <div className="text-sm text-purple-100">Images</div>
+            </div>
+            <div className="bg-white/10 backdrop-blur rounded-lg p-4">
+              <div className="text-2xl font-bold">{stats.videos}</div>
+              <div className="text-sm text-purple-100">Videos</div>
+            </div>
+            <div className="bg-white/10 backdrop-blur rounded-lg p-4">
+              <div className="text-2xl font-bold">{stats.active}</div>
+              <div className="text-sm text-purple-100">Active</div>
+            </div>
           </div>
-          <button 
-            onClick={() => setShowUpload(true)} 
-            className="flex items-center gap-1 px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-          >
-            <Plus className="w-4 h-4" /> Add Media
-          </button>
         </div>
       </div>
 
-      {/* Category Manager Modal */}
-      {showCategoryManager && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
-            <div className="border-b p-4 flex justify-between items-center">
-              <h3 className="font-semibold text-lg">Manage Media Categories</h3>
-              <button onClick={() => setShowCategoryManager(false)} className="hover:bg-gray-100 p-1 rounded-lg">
-                <X className="w-5 h-5" />
+      {/* Filters Bar */}
+      <div className="sticky top-0 bg-white border-b shadow-sm z-40">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="flex flex-wrap gap-4 items-center justify-between">
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setMediaTypeFilter('all')}
+                className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 ${
+                  mediaTypeFilter === 'all' 
+                    ? 'bg-indigo-600 text-white shadow-md' 
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <Grid className="w-4 h-4" />
+                All
+              </button>
+              <button
+                onClick={() => setMediaTypeFilter('image')}
+                className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 ${
+                  mediaTypeFilter === 'image' 
+                    ? 'bg-indigo-600 text-white shadow-md' 
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <Camera className="w-4 h-4" />
+                Images
+                {stats.images > 0 && (
+                  <span className="ml-1 text-xs">{stats.images}</span>
+                )}
+              </button>
+              <button
+                onClick={() => setMediaTypeFilter('video')}
+                className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 ${
+                  mediaTypeFilter === 'video' 
+                    ? 'bg-indigo-600 text-white shadow-md' 
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <Video className="w-4 h-4" />
+                Videos
+                {stats.videos > 0 && (
+                  <span className="ml-1 text-xs">{stats.videos}</span>
+                )}
+              </button>
+
+              <div className="w-px h-8 bg-gray-300 mx-2"></div>
+
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="px-4 py-2 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="all">All Categories</option>
+                {categories.map(cat => (
+                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                ))}
+              </select>
+
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="px-4 py-2 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="all">All Status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+
+              <input
+                type="text"
+                placeholder="Search media..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="px-4 py-2 border rounded-lg text-sm w-64 focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <div className="flex border rounded-lg overflow-hidden">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`p-2 ${viewMode === 'grid' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600'}`}
+                >
+                  <Grid className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`p-2 ${viewMode === 'list' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600'}`}
+                >
+                  <LayoutList className="w-4 h-4" />
+                </button>
+              </div>
+
+              <button 
+                onClick={() => setShowUpload(true)} 
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all shadow-md hover:shadow-lg"
+              >
+                <Plus className="w-4 h-4" /> Upload Media
               </button>
             </div>
-            <div className="p-6 space-y-4">
-              {/* Add new category */}
-              <form onSubmit={(e) => { e.preventDefault(); handleAddCategory(newCategoryInline); setNewCategoryInline(''); }} className="flex gap-2">
-                <input
-                  type="text"
-                  value={newCategoryInline}
-                  onChange={(e) => setNewCategoryInline(e.target.value)}
-                  placeholder="New category name"
-                  className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                />
-                <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 flex items-center gap-1">
-                  <Plus className="w-4 h-4" /> Add
-                </button>
-              </form>
+          </div>
+        </div>
+      </div>
 
-              {/* List of categories with edit/delete */}
-              <div className="space-y-2 max-h-96 overflow-y-auto">
-                <h4 className="text-sm font-medium text-gray-700">Existing Categories</h4>
-                {categories.map((cat) => (
-                  <div key={cat} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
-                    {editingCategory === cat ? (
-                      <div className="flex-1 flex gap-2">
-                        <input
-                          type="text"
-                          value={editValue}
-                          onChange={(e) => setEditValue(e.target.value)}
-                          className="flex-1 px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                          autoFocus
-                        />
-                        <button
-                          onClick={() => {
-                            handleUpdateCategory(cat, editValue);
-                            setEditingCategory(null);
-                          }}
-                          className="p-1 text-green-600 hover:bg-green-50 rounded"
-                        >
-                          <Check className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => setEditingCategory(null)}
-                          className="p-1 text-red-600 hover:bg-red-50 rounded"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
+      {/* Content Area */}
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        {loading ? (
+          <div className="flex justify-center items-center py-20">
+            <Loader className="w-12 h-12 animate-spin text-indigo-600" />
+          </div>
+        ) : filteredMedia.length === 0 ? (
+          <div className="text-center py-20 bg-white rounded-xl shadow-sm">
+            <Upload className="w-20 h-20 mx-auto mb-4 text-gray-300" />
+            <p className="text-xl text-gray-500">No media found</p>
+            <p className="text-sm text-gray-400 mt-2">Click "Upload Media" to add images or videos</p>
+          </div>
+        ) : (
+          <>
+            {/* Category Sections */}
+            {mediaTypeFilter === 'all' ? (
+              <>
+                {/* Images Section */}
+                {images.length > 0 && (
+                  <div className="mb-12">
+                    <div className="flex items-center justify-between mb-6">
+                      <div>
+                        <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                          <Camera className="w-6 h-6 text-indigo-600" />
+                          Photos
+                        </h2>
+                        <p className="text-gray-500 mt-1">{images.length} images</p>
+                      </div>
+                    </div>
+                    {viewMode === 'grid' ? (
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                        {images.map(item => renderMediaCard(item, 'image'))}
                       </div>
                     ) : (
-                      <>
-                        <span className="text-gray-700">{cat}</span>
-                        <div className="flex gap-1">
-                          <button
-                            onClick={() => {
-                              setEditingCategory(cat);
-                              setEditValue(cat);
-                            }}
-                            className="p-1 text-blue-600 hover:bg-blue-50 rounded"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteCategory(cat)}
-                            className="p-1 text-red-600 hover:bg-red-50 rounded"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </>
+                      <div className="space-y-3">
+                        {images.map(item => renderMediaListItem(item, 'image'))}
+                      </div>
                     )}
                   </div>
-                ))}
+                )}
+
+                {/* Videos Section */}
+                {videos.length > 0 && (
+                  <div>
+                    <div className="flex items-center justify-between mb-6">
+                      <div>
+                        <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                          <Video className="w-6 h-6 text-indigo-600" />
+                          Videos
+                        </h2>
+                        <p className="text-gray-500 mt-1">{videos.length} videos</p>
+                      </div>
+                    </div>
+                    {viewMode === 'grid' ? (
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        {videos.map(item => renderMediaCard(item, 'video'))}
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {videos.map(item => renderMediaListItem(item, 'video'))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            ) : (
+              // Single media type view
+              <div className={viewMode === 'grid' 
+                ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4"
+                : "space-y-3"
+              }>
+                {filteredMedia.map(item => renderMediaCard(item, mediaTypeFilter))}
               </div>
-              <div className="text-xs text-gray-500 mt-4 p-3 bg-blue-50 rounded-lg">
-                <strong>Note:</strong> Categories used by existing media cannot be deleted.
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Lightbox Modal for Images/Videos */}
+      {showLightbox && selectedMedia && (
+        <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center">
+          <button onClick={closeLightbox} className="absolute top-4 right-4 text-white hover:text-gray-300">
+            <X className="w-8 h-8" />
+          </button>
+          
+          {filteredMedia.length > 1 && (
+            <>
+              <button onClick={() => navigateLightbox('prev')} className="absolute left-4 text-white hover:text-gray-300">
+                <ChevronLeft className="w-12 h-12" />
+              </button>
+              <button onClick={() => navigateLightbox('next')} className="absolute right-4 text-white hover:text-gray-300">
+                <ChevronRight className="w-12 h-12" />
+              </button>
+            </>
+          )}
+
+          <div className="max-w-6xl max-h-[90vh] mx-auto">
+            {selectedMedia.mediaType === 'image' ? (
+              <img 
+                src={getFileUrl(selectedMedia.file)} 
+                alt={selectedMedia.name}
+                className="max-w-full max-h-[85vh] object-contain"
+              />
+            ) : (
+              <video 
+                src={getFileUrl(selectedMedia.file)} 
+                controls
+                autoPlay
+                className="max-w-full max-h-[85vh]"
+              />
+            )}
+            
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6 text-white">
+              <h3 className="text-xl font-bold">{selectedMedia.name}</h3>
+              <p className="text-gray-200 mt-1">{selectedMedia.description}</p>
+              <div className="flex gap-4 mt-3">
+                <span className="text-sm bg-white/20 px-3 py-1 rounded-full">
+                  {getCategoryName(selectedMedia.categoryId)}
+                </span>
+                <span className="text-sm bg-white/20 px-3 py-1 rounded-full">
+                  {selectedMedia.mediaType}
+                </span>
               </div>
             </div>
           </div>
@@ -257,234 +503,326 @@ export default function Media() {
       )}
 
       {/* Upload Modal */}
-      {showUpload && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
-            <div className="border-b p-4 flex justify-between items-center">
-              <h3 className="font-semibold text-lg">Upload Media</h3>
-              <button 
-                onClick={() => {
-                  setShowUpload(false);
-                  setUploadFile(null);
-                  setUploadPreview('');
-                  setUploadTitle('');
-                  setNewCategoryInline('');
-                }} 
-                className="hover:bg-gray-100 p-1 rounded-lg"
-              >
-                <X className="w-5 h-5" />
-              </button>
+      {showUpload && renderUploadModal()}
+      
+      {/* Edit Modal */}
+      {showEditModal && editingMedia && renderEditModal()}
+    </div>
+  );
+
+  // Render Media Card
+  function renderMediaCard(item, type) {
+    return (
+      <div key={item.id} className="group relative bg-white rounded-xl shadow-sm overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer">
+        <div 
+          className="aspect-video bg-gray-100 overflow-hidden"
+          onClick={() => openLightbox(item)}
+        >
+          {type === 'image' ? (
+            <img 
+              src={getFileUrl(item.file)} 
+              alt={item.name}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              loading="lazy"
+            />
+          ) : (
+            <div className="relative w-full h-full">
+              <video 
+                src={getFileUrl(item.file)} 
+                className="w-full h-full object-cover"
+                preload="metadata"
+              />
+              <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/40 transition-all">
+                <Play className="w-12 h-12 text-white opacity-90 group-hover:scale-110 transition-transform" />
+              </div>
             </div>
-            <div className="p-6 space-y-4">
-              {/* Media Type */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Media Type</label>
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setUploadType('image');
-                      setUploadFile(null);
-                      setUploadPreview('');
-                    }}
-                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg border transition-colors ${
-                      uploadType === 'image' 
-                        ? 'bg-indigo-600 text-white border-indigo-600' 
-                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    <Camera className="w-4 h-4" />
-                    Image
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setUploadType('video');
-                      setUploadFile(null);
-                      setUploadPreview('');
-                    }}
-                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg border transition-colors ${
-                      uploadType === 'video' 
-                        ? 'bg-indigo-600 text-white border-indigo-600' 
-                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    <FileVideo className="w-4 h-4" />
-                    Video
-                  </button>
-                </div>
-              </div>
+          )}
+          
+          {item.status === 'inactive' && (
+            <div className="absolute top-2 left-2 bg-gray-900/80 text-white text-xs px-2 py-1 rounded">
+              Inactive
+            </div>
+          )}
+        </div>
 
-              {/* Title */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-                <input 
-                  value={uploadTitle} 
-                  onChange={(e) => setUploadTitle(e.target.value)} 
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  placeholder="Enter title"
-                  required
-                />
-              </div>
-
-              {/* Category selection + inline add */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                <select
-                  value={uploadCategory}
-                  onChange={(e) => setUploadCategory(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                >
-                  {categories.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
-                <div className="mt-2 flex gap-2">
-                  <input
-                    type="text"
-                    value={newCategoryInline}
-                    onChange={(e) => setNewCategoryInline(e.target.value)}
-                    placeholder="Or add new category"
-                    className="flex-1 px-3 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddNewCategoryInline}
-                    className="px-3 py-1.5 text-sm bg-gray-100 rounded-lg hover:bg-gray-200"
-                  >
-                    Add
-                  </button>
-                </div>
-              </div>
-
-              {/* File upload */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {uploadType === 'image' ? 'Upload Image' : 'Upload Video'}
-                </label>
-                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:border-indigo-500 cursor-pointer">
-                  <div className="space-y-1 text-center">
-                    {uploadPreview ? (
-                      <div className="relative">
-                        {uploadType === 'image' ? (
-                          <img src={uploadPreview} alt="Preview" className="max-h-48 mx-auto rounded-lg" />
-                        ) : (
-                          <video src={uploadPreview} controls className="max-h-48 mx-auto rounded-lg" />
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setUploadFile(null);
-                            setUploadPreview('');
-                          }}
-                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        <Upload className="mx-auto h-12 w-12 text-gray-400" />
-                        <div className="flex text-sm text-gray-600">
-                          <label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500">
-                            <span>Upload a file</span>
-                            <input 
-                              id="file-upload" 
-                              type="file" 
-                              className="sr-only" 
-                              accept={uploadType === 'image' ? 'image/*' : 'video/*'}
-                              onChange={handleFileChange}
-                            />
-                          </label>
-                          <p className="pl-1">or drag and drop</p>
-                        </div>
-                        <p className="text-xs text-gray-500">
-                          {uploadType === 'image' ? 'PNG, JPG, GIF up to 10MB' : 'MP4, MOV, AVI up to 50MB'}
-                        </p>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="flex justify-end gap-3 pt-4">
-                <button 
-                  onClick={() => {
-                    setShowUpload(false);
-                    setUploadFile(null);
-                    setUploadPreview('');
-                    setUploadTitle('');
-                    setNewCategoryInline('');
-                  }} 
-                  className="px-4 py-2 border rounded-lg hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button 
-                  onClick={handleUpload} 
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-                  disabled={!uploadPreview || !uploadTitle || !uploadCategory}
-                >
-                  Upload
-                </button>
-              </div>
+        <div className="p-3">
+          <h3 className="font-semibold text-gray-900 truncate">{item.name}</h3>
+          {item.description && (
+            <p className="text-xs text-gray-500 truncate mt-1">{item.description}</p>
+          )}
+          <div className="flex items-center justify-between mt-2">
+            <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
+              {getCategoryName(item.categoryId)}
+            </span>
+            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                onClick={(e) => { e.stopPropagation(); handleEdit(item); }}
+                className="p-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                title="Edit"
+              >
+                <Edit2 className="w-3 h-3" />
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); handleToggleStatus(item.id, item.status); }}
+                className={`p-1.5 rounded-lg transition-colors ${
+                  item.status === 'active' 
+                    ? 'bg-yellow-500 text-white hover:bg-yellow-600' 
+                    : 'bg-green-500 text-white hover:bg-green-600'
+                }`}
+                title={item.status === 'active' ? 'Deactivate' : 'Activate'}
+              >
+                {item.status === 'active' ? 'D' : 'A'}
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }}
+                className="p-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                title="Delete"
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
             </div>
           </div>
         </div>
-      )}
+      </div>
+    );
+  }
 
-      {/* Media Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {filteredMedia.length === 0 ? (
-          <div className="col-span-full text-center py-12 text-gray-400">
-            <Upload className="w-16 h-16 mx-auto mb-4 opacity-50" />
-            <p className="text-lg">No media found</p>
-            <p className="text-sm">Click "Add Media" to upload images or videos</p>
+  // Render List Item
+  function renderMediaListItem(item, type) {
+    return (
+      <div key={item.id} className="group bg-white rounded-lg shadow-sm hover:shadow-md transition-all p-4 flex items-center gap-4 cursor-pointer">
+        <div className="w-24 h-24 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0" onClick={() => openLightbox(item)}>
+          {type === 'image' ? (
+            <img src={getFileUrl(item.file)} alt={item.name} className="w-full h-full object-cover" />
+          ) : (
+            <div className="relative w-full h-full bg-gray-800 flex items-center justify-center">
+              <Video className="w-8 h-8 text-white" />
+            </div>
+          )}
+        </div>
+        
+        <div className="flex-1 min-w-0" onClick={() => openLightbox(item)}>
+          <h3 className="font-semibold text-gray-900">{item.name}</h3>
+          {item.description && <p className="text-sm text-gray-500 truncate">{item.description}</p>}
+          <div className="flex gap-2 mt-1">
+            <span className="text-xs text-gray-500">{getCategoryName(item.categoryId)}</span>
+            <span className="text-xs text-gray-500">•</span>
+            <span className="text-xs text-gray-500">{new Date(item.createdAt).toLocaleDateString()}</span>
+            <span className={`text-xs px-2 py-0.5 rounded-full ${
+              item.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
+            }`}>
+              {item.status}
+            </span>
           </div>
-        ) : (
-          filteredMedia.map(item => (
-            <div key={item.id} className="bg-white rounded-xl shadow-sm border overflow-hidden group relative">
-              <div className="aspect-video bg-gray-100 flex items-center justify-center">
-                {item.type === 'image' ? (
-                  <img 
-                    src={item.data} 
-                    alt={item.title} 
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      e.target.src = 'https://via.placeholder.com/400x300?text=Error';
+        </div>
+
+        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button onClick={() => handleEdit(item)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">
+            <Edit2 className="w-4 h-4" />
+          </button>
+          <button onClick={() => handleToggleStatus(item.id, item.status)} className="p-2 text-yellow-600 hover:bg-yellow-50 rounded-lg">
+            {item.status === 'active' ? 'D' : 'A'}
+          </button>
+          <button onClick={() => handleDelete(item.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg">
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Render Upload Modal
+  function renderUploadModal() {
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+        <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+          <div className="sticky top-0 bg-white border-b p-4 flex justify-between items-center">
+            <h3 className="font-semibold text-lg">Upload New Media</h3>
+            <button onClick={() => { setShowUpload(false); resetUploadForm(); }} className="hover:bg-gray-100 p-1 rounded-lg">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="p-6 space-y-4">
+            {/* Media Type Selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Media Type *</label>
+              <div className="grid grid-cols-2 gap-3">
+                {['image', 'video'].map(type => (
+                  <button
+                    key={type}
+                    onClick={() => {
+                      setUploadType(type);
+                      setUploadFile(null);
+                      setUploadPreview('');
                     }}
-                  />
-                ) : (
-                  <video 
-                    src={item.data} 
-                    className="w-full h-full object-cover"
-                    controls
-                  />
-                )}
+                    className={`py-3 rounded-lg border-2 transition-all flex items-center justify-center gap-2 ${
+                      uploadType === type 
+                        ? 'border-indigo-600 bg-indigo-50 text-indigo-700' 
+                        : 'border-gray-300 hover:border-indigo-300'
+                    }`}
+                  >
+                    {type === 'image' ? <Camera className="w-5 h-5" /> : <Video className="w-5 h-5" />}
+                    <span className="capitalize">{type}</span>
+                  </button>
+                ))}
               </div>
-              <div className="p-3">
-                <p className="text-sm font-medium text-gray-900 truncate">{item.title}</p>
-                <div className="flex items-center justify-between mt-1">
-                  <span className="text-xs text-gray-500">{new Date(item.createdAt).toLocaleDateString()}</span>
-                  {item.category && (
-                    <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
-                      {item.category}
-                    </span>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
+              <input 
+                value={uploadTitle} 
+                onChange={(e) => setUploadTitle(e.target.value)} 
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                placeholder="Enter title"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+              <textarea 
+                value={uploadDescription} 
+                onChange={(e) => setUploadDescription(e.target.value)} 
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                placeholder="Enter description (optional)"
+                rows="3"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
+              <select
+                value={uploadCategoryId}
+                onChange={(e) => setUploadCategoryId(e.target.value)}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">Select a category</option>
+                {categories.map(cat => (
+                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {uploadType === 'image' ? 'Upload Image *' : 'Upload Video *'}
+              </label>
+              <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:border-indigo-500 transition-colors">
+                <div className="space-y-1 text-center">
+                  {uploadPreview ? (
+                    <div className="relative">
+                      {uploadType === 'image' ? (
+                        <img src={uploadPreview} alt="Preview" className="max-h-48 mx-auto rounded-lg" />
+                      ) : (
+                        <video src={uploadPreview} controls className="max-h-48 mx-auto rounded-lg" />
+                      )}
+                      <button
+                        onClick={() => { setUploadFile(null); setUploadPreview(''); }}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <Upload className="mx-auto h-12 w-12 text-gray-400" />
+                      <div className="flex text-sm text-gray-600">
+                        <label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500">
+                          <span>Choose file</span>
+                          <input id="file-upload" type="file" className="sr-only" accept={uploadType === 'image' ? 'image/*' : 'video/*'} onChange={(e) => {
+                            const file = e.target.files[0];
+                            if (file) {
+                              setUploadFile(file);
+                              const reader = new FileReader();
+                              reader.onloadend = () => setUploadPreview(reader.result);
+                              reader.readAsDataURL(file);
+                            }
+                          }} />
+                        </label>
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        {uploadType === 'image' ? 'PNG, JPG, GIF up to 10MB' : 'MP4, MOV, AVI up to 50MB'}
+                      </p>
+                    </>
                   )}
                 </div>
               </div>
-              <button 
-                onClick={() => handleDelete(item.id)} 
-                className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all hover:bg-red-600"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 sticky bottom-0 bg-white py-4 border-t">
+              <button onClick={() => { setShowUpload(false); resetUploadForm(); }} className="px-4 py-2 border rounded-lg hover:bg-gray-50">
+                Cancel
+              </button>
+              <button onClick={handleUpload} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50" disabled={!uploadPreview || !uploadTitle || !uploadCategoryId || uploading}>
+                {uploading ? <Loader className="w-4 h-4 animate-spin inline" /> : 'Upload'}
               </button>
             </div>
-          ))
-        )}
+          </div>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
+
+  // Render Edit Modal
+  function renderEditModal() {
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+        <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+          <div className="border-b p-4 flex justify-between items-center">
+            <h3 className="font-semibold text-lg">Edit Media</h3>
+            <button onClick={() => { setShowEditModal(false); resetUploadForm(); }} className="hover:bg-gray-100 p-1 rounded-lg">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="p-6 space-y-4">
+            {editingMedia && (
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Current File</label>
+                <div className="bg-gray-100 rounded-lg p-2">
+                  {editingMedia.mediaType === 'image' ? (
+                    <img src={getFileUrl(editingMedia.file)} alt={editingMedia.name} className="w-full h-32 object-cover rounded" />
+                  ) : (
+                    <video src={getFileUrl(editingMedia.file)} className="w-full h-32 object-cover rounded" controls />
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
+              <input value={uploadTitle} onChange={(e) => setUploadTitle(e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+              <textarea value={uploadDescription} onChange={(e) => setUploadDescription(e.target.value)} className="w-full px-3 py-2 border rounded-lg" rows="3" />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
+              <select value={uploadCategoryId} onChange={(e) => setUploadCategoryId(e.target.value)} className="w-full px-3 py-2 border rounded-lg">
+                {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Replace File (optional)</label>
+              <input type="file" accept={uploadType === 'image' ? 'image/*' : 'video/*'} onChange={(e) => {
+                const file = e.target.files[0];
+                if (file) setUploadFile(file);
+              }} className="w-full" />
+              <p className="text-xs text-gray-500 mt-1">Leave empty to keep current file</p>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4">
+              <button onClick={() => { setShowEditModal(false); resetUploadForm(); }} className="px-4 py-2 border rounded-lg">Cancel</button>
+              <button onClick={handleUpdate} className="px-4 py-2 bg-indigo-600 text-white rounded-lg" disabled={uploading}>
+                {uploading ? <Loader className="w-4 h-4 animate-spin inline" /> : 'Update'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 }

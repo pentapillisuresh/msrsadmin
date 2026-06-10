@@ -41,12 +41,16 @@ export default function Donations() {
     try {
       setLoading(true);
       const response = await api.get('/donations');
-      if (response.success) {
-        setDonations(response.data.data || []);
+      if (response && response.success) {
+        setDonations(response.data?.data || []);
+      } else if (response && response.data) {
+        setDonations(Array.isArray(response.data) ? response.data : (response.data.data || []));
+      } else {
+        setDonations([]);
       }
     } catch (error) {
       console.error('Error fetching donations:', error);
-      alert('Error fetching donations. Please try again.');
+      setDonations([]);
     } finally {
       setLoading(false);
     }
@@ -56,11 +60,23 @@ export default function Donations() {
   const fetchStats = async () => {
     try {
       const response = await api.get('/donations/stats');
-      if (response.success) {
-        setStats(response.data.data);
+      if (response && response.success) {
+        const statsData = response.data?.data || response.data || {};
+        setStats({
+          totalAmount: statsData.totalAmount || 0,
+          monthlyStats: statsData.monthlyStats || []
+        });
+      } else if (response && response.data) {
+        setStats({
+          totalAmount: response.data.totalAmount || 0,
+          monthlyStats: response.data.monthlyStats || []
+        });
+      } else {
+        setStats({ totalAmount: 0, monthlyStats: [] });
       }
     } catch (error) {
       console.error('Error fetching stats:', error);
+      setStats({ totalAmount: 0, monthlyStats: [] });
     }
   };
 
@@ -68,11 +84,16 @@ export default function Donations() {
   const fetchCategories = async () => {
     try {
       const response = await api.get('/categories/?categoryRelated=donation');
-      if (response.success) {
+      if (response && response.success) {
         setCategories(response.data || []);
+      } else if (response && Array.isArray(response.data)) {
+        setCategories(response.data);
+      } else {
+        setCategories([]);
       }
     } catch (error) {
       console.error('Error fetching categories:', error);
+      setCategories([]);
     }
   };
 
@@ -91,7 +112,7 @@ export default function Donations() {
         status: 'active'
       });
       
-      if (response.success) {
+      if (response && response.success) {
         setCategories([...categories, response.data]);
         alert('Category added successfully!');
         return true;
@@ -112,7 +133,7 @@ export default function Donations() {
     
     try {
       const response = await api.delete(`/categories/${categoryId}`);
-      if (response.success) {
+      if (response && response.success) {
         setCategories(categories.filter(c => c.id !== categoryId));
         alert('Category deleted successfully!');
         return true;
@@ -141,7 +162,7 @@ export default function Donations() {
         status: 'active'
       });
       
-      if (response.success) {
+      if (response && response.success) {
         setCategories(categories.map(c => 
           c.id === categoryId ? response.data : c
         ));
@@ -180,20 +201,20 @@ export default function Donations() {
   const openEditForm = async (donation) => {
     try {
       const response = await api.get(`/donations/${donation.id}`);
-      if (response.success) {
-        const donationData = response.data;
+      if (response && response.success) {
+        const donationData = response.data?.data || response.data;
         setEditingDonation(donationData);
         setFormData({
-          donerName: donationData.donerName,
-          donerEmail: donationData.donerEmail,
-          donerPhoneNumber: donationData.donerPhoneNumber,
-          citizenship: donationData.citizenship,
-          donationType: donationData.donationType,
-          cause: donationData.cause,
+          donerName: donationData.donerName || '',
+          donerEmail: donationData.donerEmail || '',
+          donerPhoneNumber: donationData.donerPhoneNumber || '',
+          citizenship: donationData.citizenship || 'Indian',
+          donationType: donationData.donationType || 'once',
+          cause: donationData.cause || '',
           description: donationData.description || '',
-          donationAmount: donationData.donationAmount,
+          donationAmount: donationData.donationAmount || '',
           panCard: donationData.panCard || '',
-          status: donationData.status,
+          status: donationData.status || 'pending',
           categoryId: donationData.categoryId || ''
         });
         setShowForm(true);
@@ -252,16 +273,18 @@ export default function Donations() {
         response = await api.post('/donations/createByAdmin', donationData);
       }
 
-      if (response.success) {
+      if (response && response.success) {
         await fetchDonations();
         await fetchStats();
         setShowForm(false);
         setEditingDonation(null);
         alert(editingDonation ? 'Donation updated successfully!' : 'Donation added successfully!');
+      } else {
+        alert(response?.message || 'Error saving donation');
       }
     } catch (error) {
       console.error('Error saving donation:', error);
-      alert('Error saving donation. Please try again.');
+      alert(error.response?.data?.message || 'Error saving donation. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -271,10 +294,12 @@ export default function Donations() {
     if (window.confirm('Are you sure you want to delete this donation record?')) {
       try {
         const response = await api.delete(`/donations/${id}`);
-        if (response.success) {
+        if (response && response.success) {
           await fetchDonations();
           await fetchStats();
           alert('Donation deleted successfully!');
+        } else {
+          alert(response?.message || 'Error deleting donation');
         }
       } catch (error) {
         console.error('Error deleting donation:', error);
@@ -286,9 +311,12 @@ export default function Donations() {
   const handleStatusUpdate = async (id, newStatus) => {
     try {
       const response = await api.put(`/donations/${id}/status`, { status: newStatus });
-      if (response.success) {
+      if (response && response.success) {
         await fetchDonations();
         await fetchStats();
+        alert('Status updated successfully!');
+      } else {
+        alert(response?.message || 'Error updating status');
       }
     } catch (error) {
       console.error('Error updating status:', error);
@@ -296,16 +324,16 @@ export default function Donations() {
     }
   };
 
-  const filteredDonations = donations.filter(d => {
+  const filteredDonations = Array.isArray(donations) ? donations.filter(d => {
     const matchesSearch = d.donerName?.toLowerCase().includes(search.toLowerCase()) ||
                           d.donerEmail?.toLowerCase().includes(search.toLowerCase());
     const matchesStatus = filterStatus === 'all' || d.status === filterStatus;
     const matchesType = filterDonationType === 'all' || d.donationType === filterDonationType;
     const matchesCategory = filterCategory === 'all' || d.categoryId === filterCategory;
     return matchesSearch && matchesStatus && matchesType && matchesCategory;
-  });
+  }) : [];
 
-  const totalAmount = filteredDonations.reduce((sum, d) => sum + parseFloat(d.donationAmount), 0);
+  const totalAmount = filteredDonations.reduce((sum, d) => sum + parseFloat(d.donationAmount || 0), 0);
 
   const exportData = () => {
     const exportData = donations.map(d => ({
@@ -378,13 +406,15 @@ export default function Donations() {
         </div>
       </div>
 
-      {/* Summary Cards */}
+      {/* Summary Cards - Fixed with safe access */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-xl p-4 text-white">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs opacity-90 font-medium">Total Donations</p>
-              <p className="text-2xl font-bold">₹{stats.totalAmount?.toFixed(2) || totalAmount.toFixed(2)}</p>
+              <p className="text-2xl font-bold">
+                ₹{(stats?.totalAmount || totalAmount).toFixed(2)}
+              </p>
             </div>
             <DollarSign className="w-8 h-8 opacity-80" />
           </div>
@@ -421,8 +451,8 @@ export default function Donations() {
         </div>
       </div>
 
-      {/* Monthly Stats Chart */}
-      {stats.monthlyStats && stats.monthlyStats.length > 0 && (
+      {/* Monthly Stats Chart - Fixed with safe access */}
+      {stats?.monthlyStats && stats.monthlyStats.length > 0 && (
         <div className="bg-white rounded-xl shadow-sm border p-4">
           <h3 className="text-sm font-semibold text-gray-700 mb-3">Monthly Donation Trends</h3>
           <div className="flex gap-2 overflow-x-auto pb-2">
@@ -430,8 +460,10 @@ export default function Donations() {
               <div key={idx} className="flex-1 min-w-[100px] text-center">
                 <div className="text-xs text-gray-500 mb-1">{month.month}</div>
                 <div className="bg-indigo-100 rounded-lg p-2">
-                  <div className="text-sm font-semibold text-indigo-700">₹{parseFloat(month.total).toFixed(2)}</div>
-                  <div className="text-xs text-gray-500">{month.count} donations</div>
+                  <div className="text-sm font-semibold text-indigo-700">
+                    ₹{parseFloat(month.total || 0).toFixed(2)}
+                  </div>
+                  <div className="text-xs text-gray-500">{month.count || 0} donations</div>
                 </div>
               </div>
             ))}
@@ -500,7 +532,7 @@ export default function Donations() {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                {/* <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th> */}
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -522,7 +554,7 @@ export default function Donations() {
                       <p className="text-xs text-gray-500">{d.donerPhoneNumber}</p>
                     </td>
                     <td className="px-4 py-3 font-semibold text-indigo-600">
-                      ₹{parseFloat(d.donationAmount).toFixed(2)}
+                      ₹{parseFloat(d.donationAmount || 0).toFixed(2)}
                     </td>
                     <td className="px-4 py-3">
                       <span className="inline-flex px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700 capitalize">
@@ -559,7 +591,7 @@ export default function Donations() {
                     <td className="px-4 py-3 text-gray-600">
                       {new Date(d.createdAt).toLocaleDateString()}
                     </td>
-                    {/* <td className="px-4 py-3">
+                    <td className="px-4 py-3">
                       <div className="flex gap-2">
                         <button 
                           onClick={() => openEditForm(d)} 
@@ -576,7 +608,7 @@ export default function Donations() {
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
-                    </td> */}
+                    </td>
                   </tr>
                 ))
               )}
@@ -756,7 +788,7 @@ export default function Donations() {
                 </div>
               </div>
 
-              {/* Category Dropdown - Added here */}
+              {/* Category Dropdown */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
                 <select

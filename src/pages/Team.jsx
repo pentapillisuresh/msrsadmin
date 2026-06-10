@@ -26,8 +26,11 @@ export default function Team() {
     try {
       setLoading(true);
       const response = await api.get('/board');
+      console.log('Board members response:', response);
       if (response.success) {
-        setTeam(response.data.data || []);
+        const members = response.data.data || response.data || [];
+        setTeam(members);
+        console.log('Loaded members:', members);
       }
     } catch (error) {
       console.error('Error fetching board members:', error);
@@ -41,11 +44,15 @@ export default function Team() {
   const fetchCategories = async () => {
     try {
       const response = await api.get('/categories/?categoryRelated=board');
+      console.log('Categories response:', response);
       if (response.success) {
-        setCategories(response.data || []);
+        const categoriesData = response.data.data || response.data || [];
+        setCategories(categoriesData);
+        console.log('Loaded categories:', categoriesData);
       }
     } catch (error) {
       console.error('Error fetching categories:', error);
+      setCategories([]);
     }
   };
 
@@ -63,17 +70,23 @@ export default function Team() {
     }
     
     try {
-      const response = await api.post('/categories/', {
+      const categoryData = {
         name: newCategory.trim(),
         categoryRelated: 'board',
         description: `Board members related to ${newCategory.trim()}`,
         status: 'active'
-      });
+      };
       
+      console.log('Adding category:', categoryData);
+      const response = await api.post('/categories/', categoryData);
+      
+      console.log('Add category response:', response);
       if (response.success) {
-        setCategories([...categories, response.data]);
+        const newCategoryData = response.data.data || response.data;
+        setCategories([...categories, newCategoryData]);
         setNewCategory('');
         alert('Category added successfully!');
+        await fetchCategories(); // Refresh categories
       }
     } catch (error) {
       console.error('Error adding category:', error);
@@ -81,28 +94,21 @@ export default function Team() {
     }
   };
 
-  const handleUpdateCategory = async (oldCatId, newCatName) => {
-    if (oldCatId === newCatName) return;
-    if (categories.some(c => c.name === newCatName)) {
-      alert('Category already exists');
-      return false;
-    }
+  const handleUpdateCategory = async (catId, newCatName) => {
+    if (!newCatName.trim()) return;
     
     try {
-      const response = await api.put(`/categories/${oldCatId}`, {
-        name: newCatName,
+      const response = await api.put(`/categories/${catId}`, {
+        name: newCatName.trim(),
         categoryRelated: 'board',
-        description: `Board members related to ${newCatName}`,
+        description: `Board members related to ${newCatName.trim()}`,
         status: 'active'
       });
       
       if (response.success) {
+        const updatedCategory = response.data.data || response.data;
         setCategories(categories.map(c => 
-          c.id === oldCatId ? response.data : c
-        ));
-        // Update all team members using this category
-        setTeam(team.map(m => 
-          m.categoryId === oldCatId ? { ...m, Category: response.data.data } : m
+          c.id === catId ? updatedCategory : c
         ));
         alert('Category updated successfully!');
         return true;
@@ -138,19 +144,39 @@ export default function Team() {
 
   // --- Member CRUD with API integration ---
   const handleSave = async (memberData) => {
+    console.log('Received member data:', memberData);
+    console.log('Selected categoryId:', memberData.categoryId);
+    
+    // Validate category selection
+    if (!memberData.categoryId) {
+      alert('Please select a category');
+      setSubmitting(false);
+      return;
+    }
+    
+    // Find the selected category name for debugging
+    const selectedCategory = categories.find(c => c.id === memberData.categoryId);
+    console.log('Selected category:', selectedCategory);
+    
     setSubmitting(true);
     try {
       const formData = new FormData();
       formData.append('name', memberData.name);
       formData.append('role', memberData.role);
-      formData.append('email', memberData.email);
-      formData.append('phoneNumber', memberData.phone);
-      formData.append('categoryId', memberData.categoryId);
+      formData.append('email', memberData.email || '');
+      formData.append('phoneNumber', memberData.phone || '');
+      formData.append('categoryId', memberData.categoryId); // Make sure this is being sent
       formData.append('mediaType', 'image');
       formData.append('status', 'active');
       
       if (memberData.image && memberData.image instanceof File) {
         formData.append('image', memberData.image);
+      }
+
+      // Log all form data for debugging
+      console.log('Sending form data:');
+      for (let pair of formData.entries()) {
+        console.log(pair[0] + ': ' + pair[1]);
       }
 
       let response;
@@ -164,15 +190,20 @@ export default function Team() {
         });
       }
 
+      console.log('Save member response:', response);
+      
       if (response.success) {
         await fetchBoardMembers();
         setShowForm(false);
         setEditingMember(null);
         alert(editingMember ? 'Team member updated successfully!' : 'Team member added successfully!');
+      } else {
+        alert(response.message || 'Error saving team member');
       }
     } catch (error) {
       console.error('Error saving team member:', error);
-      alert('Error saving team member. Please try again.');
+      console.error('Error response:', error.response?.data);
+      alert(error.response?.data?.message || 'Error saving team member. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -197,7 +228,7 @@ export default function Team() {
     try {
       const response = await api.get(`/board/${member.id}`);
       if (response.success) {
-        setSelectedMember(response.data);
+        setSelectedMember(response.data.data || response.data);
         setViewModal(true);
       }
     } catch (error) {
@@ -210,7 +241,8 @@ export default function Team() {
     try {
       const response = await api.get(`/board/${member.id}`);
       if (response.success) {
-        setEditingMember(response.data);
+        const memberData = response.data.data || response.data;
+        setEditingMember(memberData);
         setShowForm(true);
       }
     } catch (error) {
@@ -310,8 +342,8 @@ export default function Team() {
                             autoFocus
                           />
                           <button
-                            onClick={() => {
-                              handleUpdateCategory(cat.id, editValue);
+                            onClick={async () => {
+                              await handleUpdateCategory(cat.id, editValue);
                               setEditingCategory(null);
                             }}
                             className="p-1 text-green-600 hover:bg-green-50 rounded"
