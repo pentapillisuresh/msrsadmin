@@ -1,6 +1,6 @@
 // src/pages/Documents.jsx
 import React, { useState, useEffect } from 'react';
-import {api} from '../services/ApiService';
+import { api } from '../services/ApiService';
 import DocumentForm from '../components/Documents/DocumentForm';
 import DocumentList from '../components/Documents/DocumentList';
 import { Plus, X } from 'lucide-react';
@@ -11,18 +11,18 @@ export default function Documents() {
   const [editingDoc, setEditingDoc] = useState(null);
   const [loading, setLoading] = useState(true);
   const clientToken = localStorage.getItem('token');
-  
+
   // Fetch documents from API
   const fetchDocuments = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/documents/',{
+      const response = await api.get('/documents/', {
         headers: {
           Authorization: `Bearer ${clientToken}`,
           'Content-Type': 'application/json',
         },
       });
-      console.log("rrr:::",response)
+      console.log("rrr:::", response)
       if (response.success) {
         setDocuments(response.data.data || []);
       }
@@ -41,19 +41,14 @@ export default function Documents() {
   const handleSave = async (docData) => {
     try {
       const formData = new FormData();
-      
+
       // Add all text fields
       formData.append('name', docData.title);
       formData.append('description', docData.description || '');
       formData.append('year', docData.year);
       formData.append('documentType', docData.documentType);
-      if (docData.documentType === 'Certificate') {
-        formData.append('certificateType', docData.certificateType);
-      }
-      if (docData.documentType === 'Audit Report') {
-        formData.append('certificateType', docData.certificateType);
-      }
-      
+      formData.append('certificateType', docData.certificateType);
+
       // Add file if selected
       if (docData.file) {
         formData.append('document', docData.file);
@@ -63,20 +58,21 @@ export default function Documents() {
       if (editingDoc) {
         // Update existing document
         response = await api.put(`/documents/${editingDoc.id}`, formData, {
-          headers: { 
+          headers: {
             Authorization: `Bearer ${clientToken}`,
-          'Content-Type': 'multipart/form-data' 
-        }        });
+            'Content-Type': 'multipart/form-data'
+          }
+        });
       } else {
         // Create new document
         response = await api.post('/documents/', formData, {
-          headers: { 
+          headers: {
             Authorization: `Bearer ${clientToken}`,
-          'Content-Type': 'multipart/form-data' 
-        }
+            'Content-Type': 'multipart/form-data'
+          }
         });
       }
-      console.log("rrr::",response)
+      console.log("rrr::", response)
       if (response.success) {
         fetchDocuments(); // Refresh the list
         setShowForm(false);
@@ -91,11 +87,11 @@ export default function Documents() {
     const confirmed = window.confirm(
       "Are you sure you want to delete this document?"
     );
-  
+
     if (!confirmed) {
       return; // Stop if user clicks Cancel
     }
-  
+
     try {
       const response = await api.delete(`/documents/${id}`, {
         headers: {
@@ -103,28 +99,28 @@ export default function Documents() {
           "Content-Type": "application/json",
         },
       });
-  
+
       if (response.success) {
         setDocuments((prev) =>
           prev.filter((doc) => doc.id !== id)
         );
-  
+
         alert("Document deleted successfully.");
       }
     } catch (error) {
       console.error("Error deleting document:", error);
-  
+
       const message =
         error.response?.data?.message ||
         "Error deleting document. Please try again.";
-  
+
       alert(message);
     }
   };
   const handleEdit = async (doc) => {
     try {
       // Fetch full document details
-      const response = await api.get(`/documents/${doc.id}`,{
+      const response = await api.get(`/documents/${doc.id}`, {
         headers: {
           Authorization: `Bearer ${clientToken}`,
           'Content-Type': 'application/json',
@@ -152,8 +148,8 @@ export default function Documents() {
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h2 className="text-lg font-semibold text-gray-800">Document & Audit Management</h2>
-        <button 
-          onClick={() => { setEditingDoc(null); setShowForm(true); }} 
+        <button
+          onClick={() => { setEditingDoc(null); setShowForm(true); }}
           className="btn-primary text-sm flex items-center gap-1"
         >
           <Plus className="w-4 h-4" /> Add Document
@@ -165,28 +161,28 @@ export default function Documents() {
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-white border-b p-4 flex justify-between items-center">
               <h3 className="font-semibold">{editingDoc ? 'Edit Document' : 'Upload Document'}</h3>
-              <button 
-                onClick={() => { setShowForm(false); setEditingDoc(null); }} 
+              <button
+                onClick={() => { setShowForm(false); setEditingDoc(null); }}
                 className="p-1 hover:bg-gray-100 rounded"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="p-6">
-              <DocumentForm 
-                initialData={editingDoc} 
-                onSave={handleSave} 
-                onCancel={() => setShowForm(false)} 
+              <DocumentForm
+                initialData={editingDoc}
+                onSave={handleSave}
+                onCancel={() => setShowForm(false)}
               />
             </div>
           </div>
         </div>
       )}
 
-      <DocumentList 
-        documents={documents} 
-        onEdit={handleEdit} 
-        onDelete={handleDelete} 
+      <DocumentList
+        documents={documents}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
       />
     </div>
   );

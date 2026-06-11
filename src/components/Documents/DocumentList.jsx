@@ -73,11 +73,11 @@ export default function DocumentList({ documents, onEdit, onDelete }) {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       {getDocumentIcon(doc.type)}
-                      <span className="font-medium">{doc.title}</span>
+                      <span className="font-medium">{doc.name}</span>
                     </div>
                    </td>
                   <td className="px-4 py-3">
-                    {doc.type}
+                    {doc.documentType}
                     {doc.certificateType && ` - ${doc.certificateType}`}
                     {doc.reportType && ` - ${doc.reportType}`}
                    </td>
