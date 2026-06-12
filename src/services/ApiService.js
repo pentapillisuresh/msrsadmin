@@ -1,5 +1,3 @@
-// services/api.js
-
 import axios from 'axios';
 
 const API_BASE_URL = 'http://localhost:3000/api';
@@ -98,13 +96,29 @@ async function refreshAccessToken() {
 // API methods
 export const api = {
   get: (url, config = {}) => apiClient.get(url, config),
-
-  post: (url, data, config = {}) =>
-    apiClient.post(url, data, config),
-
-  put: (url, data, config = {}) =>
-    apiClient.put(url, data, config),
-
-  delete: (url, config = {}) =>
-    apiClient.delete(url, config)
+  post: (url, data, config = {}) => apiClient.post(url, data, config),
+  put: (url, data, config = {}) => apiClient.put(url, data, config),
+  delete: (url, config = {}) => apiClient.delete(url, config),
+  
+  // Blog specific methods
+  getBlogs: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiClient.get(`/blogs${queryString ? `?${queryString}` : ''}`);
+  },
+  getBlogById: (id) => apiClient.get(`/blogs/${id}`),
+  createBlog: (formData) => {
+    return apiClient.post('/blogs/', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  },
+  updateBlog: (id, formData) => {
+    return apiClient.put(`/blogs/${id}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  },
+  deleteBlog: (id) => apiClient.delete(`/blogs/${id}`),
+  updateBlogStatus: (id, status) => apiClient.patch(`/blogs/${id}/status`, { status }),
+  getBlogViews: (id) => apiClient.get(`/blogs/${id}/views`),
+  incrementBlogViews: (id) => apiClient.post(`/blogs/${id}/views`),
+  getBlogsCount: () => apiClient.get('/blogs/count'),
 };

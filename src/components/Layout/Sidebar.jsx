@@ -15,6 +15,7 @@ const menuItems = [
   { path: '/documents', icon: FileText, label: 'Documents' },
   { path: '/access-logs', icon: Download, label: 'Access Logs' },
   { path: '/events', icon: Calendar, label: 'Events' },
+   { path: '/blog', icon: BookOpen, label: 'Blog' },
   { path: '/donations', icon: HandHeart, label: 'Donations' },
   { path: '/volunteers', icon: UserPlus, label: 'Volunteers' },
   { path: '/knowledge-hub', icon: BookOpen, label: 'Knowledge Hub' },

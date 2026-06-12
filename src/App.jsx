@@ -14,6 +14,7 @@ import Team from './pages/Team';
 import Messages from './pages/Messages';
 import Settings from './pages/Settings';
 import AccessLogs from './pages/AccessLogs';
+import Blog from './pages/Blog';
 import Layout from './components/Layout/Layout';
 
 function ProtectedRoute({ children }) {
@@ -53,6 +54,7 @@ function AppRoutes() {
         <Route path="knowledge-hub" element={<KnowledgeHub />} />
         <Route path="media" element={<Media />} />
         <Route path="team" element={<Team />} />
+        <Route path="blog" element={<Blog />} />
         <Route path="messages" element={<Messages />} />
         <Route path="settings" element={<Settings />} />
       </Route>
