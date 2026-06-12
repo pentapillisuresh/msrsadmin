@@ -412,9 +412,7 @@ export default function Donations() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs opacity-90 font-medium">Total Donations</p>
-              <p className="text-2xl font-bold">
-                ₹{(stats?.totalAmount || totalAmount).toFixed(2)}
-              </p>
+              <p className="text-2xl font-bold">₹{stats?.totalAmount?.toFixed(2) || totalAmount?.toFixed(2)}</p>
             </div>
             <DollarSign className="w-8 h-8 opacity-80" />
           </div>
@@ -451,12 +449,12 @@ export default function Donations() {
         </div>
       </div>
 
-      {/* Monthly Stats Chart - Fixed with safe access */}
-      {stats?.monthlyStats && stats.monthlyStats.length > 0 && (
+      {/* Monthly Stats Chart */}
+      {stats?.monthlyStats && stats?.monthlyStats.length > 0 && (
         <div className="bg-white rounded-xl shadow-sm border p-4">
           <h3 className="text-sm font-semibold text-gray-700 mb-3">Monthly Donation Trends</h3>
           <div className="flex gap-2 overflow-x-auto pb-2">
-            {stats.monthlyStats.map((month, idx) => (
+            {stats?.monthlyStats?.map((month, idx) => (
               <div key={idx} className="flex-1 min-w-[100px] text-center">
                 <div className="text-xs text-gray-500 mb-1">{month.month}</div>
                 <div className="bg-indigo-100 rounded-lg p-2">
