@@ -47,7 +47,7 @@ export default function Documents() {
       formData.append('description', docData.description || '');
       formData.append('year', docData.year);
       formData.append('documentType', docData.documentType);
-      formData.append('certificateType', docData.certificateType);
+      formData.append('certificateType', docData.documentType === "Certificate" ? docData.certificateType : docData.reportType);
 
       // Add file if selected
       if (docData.file) {

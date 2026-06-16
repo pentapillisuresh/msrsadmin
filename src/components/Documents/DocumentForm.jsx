@@ -74,8 +74,8 @@ export default function DocumentForm({ initialData, onSave, onCancel }) {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Report Type *</label>
           <select 
-            name="certificateType" 
-            value={formData.certificateType} 
+            name="reportType" 
+            value={formData.reportType} 
             onChange={handleChange} 
             className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             required
