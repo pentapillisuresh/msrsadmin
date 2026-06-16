@@ -167,17 +167,35 @@ export default function Volunteers() {
     }
   };
 
-  const handleAccept = async (id) => {
-    try {
-      const response = await api.put(`/volunteers/${id}`, { status: 'approved' });
-      if (response.success) {
-        await fetchVolunteers();
+ const handleAccept = async (id) => {
+  try {
+    const response = await api.put(`/volunteers/${id}`, {
+      status: 'approved'
+    });
+
+    if (response.success) {
+
+      const volunteer = volunteers.find(v => v.id === id);
+
+      if (volunteer) {
+        const smsMessage =
+          `Dear ${volunteer.name}, congratulations! Your volunteer application has been approved. Welcome as an Official Volunteer. MAHA SHREE RUDRA SAMSTHANAM FOUNDATION | www.msrsfoundation.org`;
+
+        fetch(
+          `https://pgapi.smartping.ai/fe/api/v1/send?username=Rudrasamsthanam.trans&password=TG6QI&unicode=false&from=MSRSFD&to=${volunteer.phoneNumber}&text=${encodeURIComponent(smsMessage)}&dltContentId=1707178125747584868`,
+          {
+            mode: "no-cors"
+          }
+        ).catch(() => {});
       }
-    } catch (error) {
-      console.error('Error accepting volunteer:', error);
-      alert('Error updating volunteer status. Please try again.');
+
+      await fetchVolunteers();
     }
-  };
+  } catch (error) {
+    console.error('Error accepting volunteer:', error);
+    alert('Error updating volunteer status.');
+  }
+};
 
   const handleReject = async (id) => {
     try {
