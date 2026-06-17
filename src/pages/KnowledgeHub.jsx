@@ -310,7 +310,7 @@ export default function KnowledgeHub() {
                     <td className="px-4 py-3 text-gray-600 max-w-xs truncate">{article.description}</td>
                     <td className="px-4 py-3">
                       {article.file ? (
-                        <a href={`http://localhost:3000${article.file}`} download target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
+                        <a href={`https://service.msrsfoundation.org${article.file}`} download target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
                           <Download className="w-4 h-4" /> Download
                         </a>
                       ) : (
@@ -418,7 +418,7 @@ export default function KnowledgeHub() {
                 <div>
                   <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Attachment</label>
                   <div className="mt-1">
-                    <a href={`http://localhost:3000${viewingArticle.file}`} download target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline flex items-center gap-1">
+                    <a href={`https://service.msrsfoundation.org${viewingArticle.file}`} download target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline flex items-center gap-1">
                       <FileText className="w-4 h-4" /> Download file
                     </a>
                   </div>

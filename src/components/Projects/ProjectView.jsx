@@ -8,7 +8,7 @@ export default function ProjectView({ project }) {
     <div className="space-y-4">
       {project.projectImage && (
         <div className="flex justify-center">
-          <img src={`http://localhost:3000${project.projectImage}`} alt={project.name} className="max-w-full max-h-64 rounded-lg object-cover border" />
+          <img src={`https://service.msrsfoundation.org${project.projectImage}`} alt={project.name} className="max-w-full max-h-64 rounded-lg object-cover border" />
         </div>
       )}
 

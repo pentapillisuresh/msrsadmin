@@ -325,7 +325,7 @@ export default function Events() {
             <div className="p-6">
               {selectedEvent.image && (
                 <div className="mb-6">
-                  <img src={`http://localhost:3000${selectedEvent.image}`} alt={selectedEvent.eventName} className="w-full h-64 object-cover rounded-lg" />
+                  <img src={`https://service.msrsfoundation.org${selectedEvent.image}`} alt={selectedEvent.eventName} className="w-full h-64 object-cover rounded-lg" />
                 </div>
               )}
               <div className="space-y-4">
@@ -407,7 +407,7 @@ export default function Events() {
                     <td className="px-6 py-4">
                       {event.image ? (
                         <div className="w-12 h-12 rounded-lg overflow-hidden">
-                          <img src={`http://localhost:3000${event.image}`} alt={event.eventName} className="w-full h-full object-cover" />
+                          <img src={`https://service.msrsfoundation.org${event.image}`} alt={event.eventName} className="w-full h-full object-cover" />
                         </div>
                       ) : (
                         <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">

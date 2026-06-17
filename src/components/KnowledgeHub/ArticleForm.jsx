@@ -9,7 +9,7 @@ export default function ArticleForm({ initialData, onSave, onCancel, categories 
     file: null,
     fileUrl: initialData?.file || ''
   });
-  const [filePreview, setFilePreview] = useState(initialData?.file ? `http://localhost:3000${initialData.file}` : '');
+  const [filePreview, setFilePreview] = useState(initialData?.file ? `https://service.msrsfoundation.org${initialData.file}` : '');
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -92,7 +92,7 @@ export default function ArticleForm({ initialData, onSave, onCancel, categories 
         )}
         {initialData?.file && !formData.file && (
           <div className="mt-2">
-            <a href={`http://localhost:3000${initialData.file}`} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:underline">Current file</a>
+            <a href={`https://service.msrsfoundation.org${initialData.file}`} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:underline">Current file</a>
           </div>
         )}
       </div>

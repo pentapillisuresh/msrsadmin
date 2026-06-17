@@ -235,7 +235,7 @@ export default function Blog() {
             <div className="p-6">
               {selectedBlog.image && (
                 <div className="mb-6">
-                  <img src={`http://localhost:3000${selectedBlog.image}`} alt={selectedBlog.title} className="w-full h-64 object-cover rounded-lg" />
+                  <img src={`https://service.msrsfoundation.org${selectedBlog.image}`} alt={selectedBlog.title} className="w-full h-64 object-cover rounded-lg" />
                 </div>
               )}
               <div className="space-y-4">
@@ -302,7 +302,7 @@ export default function Blog() {
                     <td className="px-6 py-4">
                       {blog.image ? (
                         <div className="w-12 h-12 rounded-lg overflow-hidden">
-                          <img src={`http://localhost:3000${blog.image}`} alt={blog.title} className="w-full h-full object-cover" />
+                          <img src={`https://service.msrsfoundation.org${blog.image}`} alt={blog.title} className="w-full h-full object-cover" />
                         </div>
                       ) : (
                         <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">

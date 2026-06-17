@@ -73,7 +73,7 @@ export default function ProjectList({ projects, onEdit, onDelete, onView, onStat
                 <tr key={project.id} className="border-b hover:bg-gray-50">
                   <td className="px-4 py-3">
                     {project.projectImage ? (
-                      <img src={`http://localhost:3000${project.projectImage}`} alt={project.name} className="w-10 h-10 object-cover rounded-md" />
+                      <img src={`https://service.msrsfoundation.org${project.projectImage}`} alt={project.name} className="w-10 h-10 object-cover rounded-md" />
                     ) : (
                       <div className="w-10 h-10 bg-gray-100 rounded-md flex items-center justify-center text-gray-400 text-xs">No img</div>
                     )}

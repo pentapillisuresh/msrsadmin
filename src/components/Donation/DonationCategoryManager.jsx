@@ -15,7 +15,7 @@ export default function DonationCategoryManager({ categories, onAddCategory, onD
       setLoading(true);
       try {
         // API call to create category
-        const response = await axios.post('http://localhost:3000/api/categories/', {
+        const response = await axios.post('https://service.msrsfoundation.orgapi/categories/', {
           name: newCategory.trim(),
           categoryRelated: 'donation',
           description: `Donations related to ${newCategory.trim()}`,
@@ -45,7 +45,7 @@ export default function DonationCategoryManager({ categories, onAddCategory, onD
       setLoading(true);
       try {
         // API call to update category
-        const response = await axios.put(`http://localhost:3000/api/categories/${editingCategory.id}`, {
+        const response = await axios.put(`https://service.msrsfoundation.orgapi/categories/${editingCategory.id}`, {
           name: editValue.trim(),
           categoryRelated: 'donation',
           description: `Donations related to ${editValue.trim()}`,
@@ -76,7 +76,7 @@ export default function DonationCategoryManager({ categories, onAddCategory, onD
       setLoading(true);
       try {
         // API call to delete category
-        const response = await axios.delete(`http://localhost:3000/api/categories/${category.id}`);
+        const response = await axios.delete(`https://service.msrsfoundation.orgapi/categories/${category.id}`);
         
         if (response.success) {
           onDeleteCategory(category.id);

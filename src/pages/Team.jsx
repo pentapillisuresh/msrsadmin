@@ -426,7 +426,7 @@ export default function Team() {
             </div>
             <div className="p-6 text-center">
               {selectedMember.image ? (
-                <img src={`http://localhost:3000${selectedMember.image}`} alt={selectedMember.name} className="w-32 h-32 rounded-full object-cover border-4 border-indigo-200 mx-auto" />
+                <img src={`https://service.msrsfoundation.org${selectedMember.image}`} alt={selectedMember.name} className="w-32 h-32 rounded-full object-cover border-4 border-indigo-200 mx-auto" />
               ) : (
                 <div className="w-32 h-32 bg-indigo-100 rounded-full flex items-center justify-center border-4 border-indigo-200 mx-auto">
                   <User className="w-16 h-16 text-indigo-600" />
@@ -479,7 +479,7 @@ export default function Team() {
                 <div className="flex gap-3">
                   <div className="cursor-pointer" onClick={() => handleViewMember(member)}>
                     {member.image ? (
-                      <img src={`http://localhost:3000${member.image}`} alt={member.name} className="w-16 h-16 rounded-full object-cover border-2 border-indigo-200 hover:border-indigo-500" />
+                      <img src={`https://service.msrsfoundation.org${member.image}`} alt={member.name} className="w-16 h-16 rounded-full object-cover border-2 border-indigo-200 hover:border-indigo-500" />
                     ) : (
                       <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center hover:bg-indigo-200">
                         <User className="w-8 h-8 text-indigo-600" />

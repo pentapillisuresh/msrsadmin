@@ -12,7 +12,7 @@ export default function DocumentList({ documents, onEdit, onDelete }) {
       if (response.success) {
         // Open the document URL in a new tab
         if (response.data.documentUrl) {
-          window.open(`http://localhost:3000${response.data.data.documentUrl}`, '_blank');
+          window.open(`https://service.msrsfoundation.org${response.data.data.documentUrl}`, '_blank');
         }
       }
     } catch (error) {

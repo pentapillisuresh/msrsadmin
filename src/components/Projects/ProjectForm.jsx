@@ -62,7 +62,7 @@ export default function ProjectForm({ initialData, onSave, onCancel, categories 
   const [states, setStates] = useState([]);
   const [districts, setDistricts] = useState([]);
   const [loadingDistricts, setLoadingDistricts] = useState(false);
-  const [imagePreview, setImagePreview] = useState(initialData?.projectImage ? `http://localhost:3000${initialData.projectImage}` : '');
+  const [imagePreview, setImagePreview] = useState(initialData?.projectImage ? `https://service.msrsfoundation.org${initialData.projectImage}` : '');
   const [imageFile, setImageFile] = useState(null);
   const [loading, setLoading] = useState(false);
 

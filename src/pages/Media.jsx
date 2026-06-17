@@ -212,7 +212,7 @@ export default function Media() {
   const getFileUrl = (filePath) => {
     if (!filePath) return '';
     const cleanPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
-    return `http://localhost:3000/${cleanPath}`;
+    return `https://service.msrsfoundation.org${cleanPath}`;
   };
 
   const getCategoryName = (categoryId) => {

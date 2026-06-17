@@ -10,7 +10,7 @@ export default function TeamMemberForm({ initialData, onSave, onCancel, categori
     email: initialData?.email || '',
     phone: initialData?.phoneNumber || '',
     image: null,
-    imagePreview: initialData?.image ? `http://localhost:3000${initialData.image}` : null
+    imagePreview: initialData?.image ? `https://service.msrsfoundation.org${initialData.image}` : null
   });
 
   const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });

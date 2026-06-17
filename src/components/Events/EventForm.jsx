@@ -10,7 +10,7 @@ export default function EventForm({ initialData, onSave, onCancel, categories = 
     location: initialData?.location || '',
     categoryId: initialData?.categoryId || (categories[0]?.id || ''),
     imageFile: null,
-    imagePreview: initialData?.image ? `http://localhost:3000${initialData.image}` : null,
+    imagePreview: initialData?.image ? `https://service.msrsfoundation.org${initialData.image}` : null,
     status: initialData?.status || 'upcoming'
   });
 

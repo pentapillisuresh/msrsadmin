@@ -9,7 +9,7 @@ export default function BlogForm({ initialData, onSave, onCancel, updating }) {
     status: initialData?.status || 'draft',
     imageFile: null
   });
-  const [imagePreview, setImagePreview] = useState(initialData?.image ? `http://localhost:3000${initialData.image}` : null);
+  const [imagePreview, setImagePreview] = useState(initialData?.image ? `https://service.msrsfoundation.org${initialData.image}` : null);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
